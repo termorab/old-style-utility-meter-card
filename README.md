@@ -84,7 +84,7 @@ In **```Fixed```** mode you set only the speed:
 wheel_speed: 2
 ```
 
-The number can be set in range 0 - 20 with 0.1 steps, where 0 means the wheel rotation will be disabled, any other number is **the time of a single rotation in seconds**. That means the lower the number, the faster will the wheel spin.
+The number can be set in range -20 to 20 with 0.1 steps, where 0 means the wheel rotation will be disabled, the absolute value of any other number is **the time of a single rotation in seconds**. That means the closer is the number to zero, the faster will the wheel spin. Negative values will spin the wheel in reverse direction.
 
 In **```Power```** mode you must set the **```power_entity```** and the values for transforming the value of sensor to rotation time.
 
@@ -100,6 +100,7 @@ The formula for calculating the rotation time from these values is the following
 
 > rotation_time = (max_rot_time + min_rot_time \* power_val / max_power_value) - (max_rot_time \* power_val / max_power_value)
 
+**Negative sensor values will reverse the wheel direction**. (Thanks to [@JoKohono](https://github.com/JoKohono))
 
 The **```Realistic```** mode is similar to **```Power```** mode, but uses a simplified calculation formula, for more realistic outcome.
 You have to set the **```power_entity```** and the number of rotations per consumed kWh (or any other unit your sensor gives):

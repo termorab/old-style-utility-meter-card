@@ -2,7 +2,7 @@
 *                                                            *
 *                Old Style Utility Meter Card                *
 *                       by LuckyG3000                        *
-*                           v1.3.1                           *
+*                           v1.4.0                           *
 * https://github.com/LuckyG3000/old-style-utility-meter-card *
 *           GNU GENERAL PUBLIC LICENSE version 3.0           *
 *                                                            *
@@ -460,7 +460,19 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 				100% {opacity: 0;}
 			}
 			
-			
+			@keyframes osumc-wheel-animation-reverse {
+				0% {left: 102%; width: calc(var(--marker-width) * (12/30)); margin-left: calc(var(--marker-width) * (-6/30)); opacity: 0.6;}
+				7% {left: 93%; width: calc(var(--marker-width) * (22/30)); margin-left: calc(var(--marker-width) * (-11/30)); opacity: 0.8;}
+				13% {left: 80%; width: calc(var(--marker-width) * (27/30)); margin-left: calc(var(--marker-width) * (-13/30));}
+				19% {left: 64%; width: calc(var(--marker-width) * (29/30)); margin-left: calc(var(--marker-width) * (-14/30));}
+				25% {left: 50%; width: var(--marker-width); margin-left: calc(var(--marker-width) * (-15/30)); opacity: 1}
+				31% {left: 36%; width: calc(var(--marker-width) * (29/30)); margin-left: calc(var(--marker-width) * (-14/30));}
+				37% {left: 20%; width: calc(var(--marker-width) * (27/30)); margin-left: calc(var(--marker-width) * (-13/30));}
+				43% {left: 7%; width: calc(var(--marker-width) * (22/30)); margin-left: calc(var(--marker-width) * (-10/30)); opacity: 0.8;}
+				50% {left: -2%; width: calc(var(--marker-width) * (10/30)); margin-left: calc(var(--marker-width) * (-5/30)); opacity: 0.6;}
+				51% {opacity: 0;}
+				100% {opacity: 0;}
+			}
 			
 
 			#osumc-last-update {
@@ -879,6 +891,8 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 				//show the main <div> element with wheel
 				this._elements.wheel_window.style.display = "block";
 				
+				var reverse_dir = false;
+				
 				//set custom wheel color
 				if (this._config.wheel_color != undefined && this._config.wheel_color != '') {
 					this._elements.wheel.style.backgroundImage = "linear-gradient(to right, #111 -5%, " + this._config.wheel_color + " 50%, #111 105%)";
@@ -902,7 +916,12 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 
 				if (this._config.speed_control_mode == 'Fixed') {
 					if (!isNaN(Number(this._config.wheel_speed))) {
-						this._elements.wheel_marker.style.animationDuration = this._config.wheel_speed + "s";
+						var wheel_speed = this._config.wheel_speed;
+						if (wheel_speed < 0) {
+							reverse_dir = true;
+							wheel_speed = Math.abs(wheel_speed);
+						}
+						this._elements.wheel_marker.style.animationDuration = wheel_speed + "s";
 					} else {
 						this._elements.wheel_marker.style.removeProperty('animation-duration');
 					}
@@ -935,9 +954,21 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 								this._elements.wheel_marker.style.animationDuration = calc_wheel_speed + "s";
 							}
 						}
+						
+						//reverse the marker direction if the power value is negative
+						if (power_val < 0) {
+							reverse_dir = true;
+						}
 					} else {
 						this._elements.wheel_marker.style.removeProperty('animation-duration');
 					}
+				}
+				
+				//reverse the marker direction if the power value is negative
+				if (reverse_dir) {
+					this._elements.wheel_marker.style.animationName = 'osumc-wheel-animation-reverse';
+				} else {
+					this._elements.wheel_marker.style.animationName = 'osumc-wheel-animation';
 				}
 			} else {
 				this._elements.wheel_marker.style.animationDuration = 0;
@@ -1012,7 +1043,7 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 			{ name: "show_wheel", selector: { boolean: {} } },
 			{ name: "marker_width", selector: { number: { min: 3, max: 100, step: 1, mode: "slider" } } },
 			{ name: "speed_control_mode", selector: { select: { mode: "list", options: ["Fixed", "Power", "Realistic"] } } },
-			{ name: "wheel_speed", selector: { number: { min: 0.1, max: 20, step: 0.1, mode: "slider" } } },
+			{ name: "wheel_speed", selector: { number: { min: -20, max: 20, step: 0.1, mode: "slider" } } },
 			{ name: "power_entity", selector: { entity: {} } },
 			{ name: "max_power_value", selector: { number: { step: "any", mode: "box" } } },
 			{ name: "min_rot_time", selector: { number: { min: 0.1, step: 0.1, mode: "box" } } },
@@ -1074,7 +1105,7 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 				case "speed_control_mode":
 					return "Fixed - the wheel rotates with constant speed defined below. Power - the speed depends on sensor value of a defined entity, can be Power, Current, Flow... Realistic - Emulates real utility meters";
 				case "wheel_speed":
-					return "Speed of the wheel. Number of seconds per single rotation (0 - 20, 0 = STOP, 0.1 - fastest, 20 - slowest)";
+					return "Speed of the wheel. Number of seconds per single rotation (-20 to 20, 0 = STOP, 0.1 - fastest, 20 - slowest, negative values = reverse direction)";
 				case "power_entity":
 					return "Select the entity which will affect the rotation speed of the wheel. Usually Power or Current when measuring Electricity consumption, Flow for water consumption etc.";
 				case "min_rot_time":
