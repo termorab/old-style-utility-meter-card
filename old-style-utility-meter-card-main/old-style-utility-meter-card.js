@@ -258,41 +258,23 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 				background-image: linear-gradient(rgba(128,128,128,0.75), #aaa, rgba(128,128,128,0.75));
 				color: transparent;
 				background-clip: text;
-				position: relative;
-				width: 17px;
-				height: 24px;
-				display: block;
-				line-height: 24px;
-				text-align: center;
-				/*font-family: Carlito, sans-serif;*/
-				font-weight: 400;
-				font-style: normal;
-				font-size: 24px;
-			}
+					position: absolute;
+					left: 0;
+					top: 0;
+					width: 100%;
+					height: 100%;
+					display: block;
+					line-height: 24px;
+					text-align: center;
+					/*font-family: Carlito, sans-serif;*/
+					font-weight: 400;
+					font-style: normal;
+					font-size: 24px;
+				}
 
-			.osumc-red-bg {
-				display: inline-block;
-				position: relative;
-				vertical-align: top;
-				height: 39px;
-				background-color: #F02000;
-				line-height: 32px;
-			}
-
-
-			.osumc-grey-bg {
-				display: inline-block;
-				position: relative;
-				vertical-align: top;
-				height: 39px;
-				background-color: #888;
-				line-height: 39px;
-				padding: 0px 6px;
-				font-size: 18px;
-				font-weight: bold;
-				font-family: Carlito, sans-serif;
-				border-top-right-radius: 3px;
-				border-bottom-right-radius: 3px;
+				.osumc-digit-text.osumc-digit-next {
+					opacity: 0;
+					transform: translateY(100%);
 			}
 
 			.osumc-decimal-point {
@@ -501,10 +483,10 @@ class OldStyleUtilityMeterCard extends HTMLElement {
                                             `;
                                     for (var d = 0; d < 15; d++) {
                                             var idx = (i * 15) + d;
-                                            html_content += `<span class="osumc-digit-window">` +
-                                                    `<span class="osumc-digit-text osumc-digit-current" id="osumc-digit-current-` + idx + `">0</span>` +
-                                                    `<span class="osumc-digit-text osumc-digit-next" id="osumc-digit-next-` + idx + `"></span>` +
-                                                    `</span>`;
+                                            html_content += '<span class="osumc-digit-window">' +
+                                                    '<span class="osumc-digit-text osumc-digit-current" id="osumc-digit-current-' + idx + '">0</span>' +
+                                                    '<span class="osumc-digit-text osumc-digit-next" id="osumc-digit-next-' + idx + '"></span>' +
+                                                    '</span>';
                                     }
                                     html_content += `
                                             <div class="osumc-decimal-point"></div>
