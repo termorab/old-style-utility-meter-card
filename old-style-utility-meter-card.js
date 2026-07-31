@@ -574,7 +574,7 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 		this._elements.digit_window = card.querySelectorAll(".osumc-digit-window");
 		this._elements.digit_current = card.querySelectorAll(".osumc-digit-text.osumc-digit-current");
 		this._elements.digit_next = card.querySelectorAll(".osumc-digit-text.osumc-digit-next");
-		this._elements.digit = this._elements.digit_current;
+		this._elements.digit = this._elements.digit_current.length ? this._elements.digit_current : card.querySelectorAll(".osumc-digit-text");
 		
 		this._elements.wheel_window = card.querySelector(".osumc-wheel-window");
 		this._elements.wheel = card.querySelector(".osumc-wheel");
@@ -775,24 +775,29 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 					}
 					
 					var markings_offset = 0;
-					
-					if (this._elements.digit) {
-						for (var d = 0; d < total_digits; d++) {
-							dig_val = cntr_str.substring(d, d + 1);
-							this._elements.digit[(i * 15) + d].innerHTML = dig_val;
-							this._elements.digit_window[i * 15 + d].style.display = "inline-block";
-							if (random_pos && this._config['random_shift' + suffix] !== undefined && this._config['random_shift' + suffix] > 0) {
-								this._elements.digit[i * 15 + d].style.top = Math.round(Math.random() * 2 * this._config['random_shift' + suffix] - this._config['random_shift' + suffix]) + "px";
-							}
-							if (this._config['random_shift' + suffix] === '' || this._config['random_shift' + suffix] === undefined || this._config['random_shift' + suffix] == 0) {
-								this._elements.digit[i * 15 + d].style.top = 0;
-							}
-							
-							//if markings are enabled, make the last window wider
-							if (this._config['markings' + suffix] && d == (total_digits - 1)) {
-								this._elements.digit_window[i * 15 + d].style.width = "24px";
-								markings_offset = 6;	//move other elements by this number of pixels to the right
-							} else {
+			var power_direction = this._getPowerDirection();
+			
+			if (this._elements.digit) {
+				for (var d = 0; d < total_digits; d++) {
+					dig_val = cntr_str.substring(d, d + 1);
+					var digitIndex = (i * 15) + d;
+					if (d === total_digits - 1 && this._config.power_entity && this._elements.digit_current[digitIndex] && this._elements.digit_next[digitIndex]) {
+						this._animateRightmostDigit(i, d, dig_val, power_direction);
+					} else if (this._elements.digit[digitIndex]) {
+						this._elements.digit[digitIndex].innerHTML = dig_val;
+					}
+					if (this._elements.digit_window[digitIndex]) {
+						this._elements.digit_window[digitIndex].style.display = "inline-block";
+					}
+					if (random_pos && this._config['random_shift' + suffix] !== undefined && this._config['random_shift' + suffix] > 0) {
+						if (this._elements.digit[digitIndex]) {
+							this._elements.digit[digitIndex].style.top = Math.round(Math.random() * 2 * this._config['random_shift' + suffix] - this._config['random_shift' + suffix]) + "px";
+						}
+					}
+					if (this._config['random_shift' + suffix] === '' || this._config['random_shift' + suffix] === undefined || this._config['random_shift' + suffix] == 0) {
+						if (this._elements.digit[digitIndex]) {
+							this._elements.digit[digitIndex].style.top = 0;
+						}
 								this._elements.digit_window[i * 15 + d].style.removeProperty('width');
 							}
 						}
