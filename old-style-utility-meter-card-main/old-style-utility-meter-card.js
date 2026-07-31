@@ -40,6 +40,7 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 	_config;
 	_hass;
 	_elements = {};
+	_digitAnimationTimers = [];
 	_isAttached = false;
 
 	// lifecycle
@@ -489,39 +490,40 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 				<br><br>
 				`;
 				
-				//create counters
-			for (var i = 0; i < MAX_COUNTERS; i++) {
-				html_content += `
-				<div class="osumc-name" id="osumc-` + i + `"></div>
-				<div class="osumc-counter-div" id="osumc-` + i + `">
-					<div class="osumc-icon-div">
-						<ha-icon icon="mdi:flash" class="osumc-icon"></ha-icon>
-					</div><div class="osumc-integer-div">
-						`;
-				for (var d = 0; d < 15; d++) {
-					html_content += `<span class="osumc-digit-window">
-							<span class="osumc-digit-text" id="osumc-digit-` + d + `">0</span>
-						</span>`;
-				}
-				html_content += `
-						<div class="osumc-decimal-point"></div>
-						<div class="osumc-line_cont">
-							<div class="osumc-line"></div>
-							<div class="osumc-line"></div>
-							<div class="osumc-line"></div>
-							<div class="osumc-line"></div>
-							<div class="osumc-line"></div>
-							<div class="osumc-line"></div>
-							<div class="osumc-line"></div>
-							<div class="osumc-line"></div>
-							<div class="osumc-line"></div>
-						</div>
-					</div><div class="osumc-red-bg"></div><div class="osumc-grey-bg"></div>
-				</div>
-				`;
-			}
-			
-			html_content += `				
+                            //create counters
+                    for (var i = 0; i < MAX_COUNTERS; i++) {
+                            html_content += `
+                            <div class="osumc-name" id="osumc-` + i + `"></div>
+                            <div class="osumc-counter-div" id="osumc-` + i + `">
+                                    <div class="osumc-icon-div">
+                                            <ha-icon icon="mdi:flash" class="osumc-icon"></ha-icon>
+                                    </div><div class="osumc-integer-div">
+                                            `;
+                                    for (var d = 0; d < 15; d++) {
+                                            var idx = (i * 15) + d;
+                                            html_content += `<span class="osumc-digit-window">` +
+                                                    `<span class="osumc-digit-text osumc-digit-current" id="osumc-digit-current-` + idx + `">0</span>` +
+                                                    `<span class="osumc-digit-text osumc-digit-next" id="osumc-digit-next-` + idx + `"></span>` +
+                                                    `</span>`;
+                                    }
+                                    html_content += `
+                                            <div class="osumc-decimal-point"></div>
+                                            <div class="osumc-line_cont">
+                                                    <div class="osumc-line"></div>
+                                                    <div class="osumc-line"></div>
+                                                    <div class="osumc-line"></div>
+                                                    <div class="osumc-line"></div>
+                                                    <div class="osumc-line"></div>
+                                                    <div class="osumc-line"></div>
+                                                    <div class="osumc-line"></div>
+                                                    <div class="osumc-line"></div>
+                                                    <div class="osumc-line"></div>
+                                            </div>
+                                    </div><div class="osumc-red-bg"></div><div class="osumc-grey-bg"></div>
+                            </div>
+                            `;
+								}
+							html_content += `				
 				<div class="osumc-wheel-window">
 					<div class="osumc-wheel-window-left">
 						<div class="osumc-wheel-window-left-border"></div>
@@ -562,7 +564,9 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 		this._elements.markings = card.querySelectorAll(".osumc-line_cont");
 		
 		this._elements.digit_window = card.querySelectorAll(".osumc-digit-window");
-		this._elements.digit = card.querySelectorAll(".osumc-digit-text");
+		this._elements.digit_current = card.querySelectorAll(".osumc-digit-text.osumc-digit-current");
+		this._elements.digit_next = card.querySelectorAll(".osumc-digit-text.osumc-digit-next");
+		this._elements.digit = this._elements.digit_current.length ? this._elements.digit_current : card.querySelectorAll(".osumc-digit-text");
 		
 
 		this._elements.wheel_window = card.querySelector(".osumc-wheel-window");
@@ -570,6 +574,69 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 		this._elements.wheel_marker = card.querySelector(".osumc-wheel-marker");
 
 		this._elements.lu = card.querySelector("#osumc-last-update");
+	}
+
+	_getPowerDirection() {
+		if (!this._config.power_entity || typeof this._config.power_entity !== "string") {
+			return 0;
+		}
+		const powerState = this._hass?.states?.[this._config.power_entity]?.state;
+		const powerVal = parseFloat(powerState);
+		if (!isNumeric(powerVal) || powerVal === 0) {
+			return 0;
+		}
+		return powerVal > 0 ? 1 : -1;
+	}
+
+	_animateRightmostDigit(counterIndex, digitIndex, newChar, direction) {
+		const idx = counterIndex * 15 + digitIndex;
+		const current = this._elements.digit_current[idx];
+		const next = this._elements.digit_next[idx];
+		if (!current || !next) {
+			return;
+		}
+		const oldChar = current.textContent;
+		if (oldChar === newChar || direction === 0) {
+			current.textContent = newChar;
+			current.style.transition = "";
+			current.style.transform = "translateY(0)";
+			current.style.opacity = "1";
+			next.style.opacity = "0";
+			next.style.transform = "translateY(100%)";
+			return;
+		}
+		if (this._digitAnimationTimers[idx]) {
+			clearTimeout(this._digitAnimationTimers[idx]);
+			this._digitAnimationTimers[idx] = null;
+		}
+		next.textContent = newChar;
+		next.style.transition = "none";
+		next.style.transform = direction > 0 ? "translateY(100%)" : "translateY(-100%)";
+		next.style.opacity = "0";
+		current.style.transition = "none";
+		current.style.transform = "translateY(0)";
+		current.style.opacity = "1";
+		next.offsetHeight;
+		current.offsetHeight;
+		const duration = 250;
+		current.style.transition = `transform ${duration}ms ease, opacity ${duration}ms ease`;
+		next.style.transition = `transform ${duration}ms ease, opacity ${duration}ms ease`;
+		requestAnimationFrame(() => {
+			current.style.transform = direction > 0 ? "translateY(-100%)" : "translateY(100%)";
+			current.style.opacity = "0";
+			next.style.transform = "translateY(0)";
+			next.style.opacity = "1";
+		});
+		this._digitAnimationTimers[idx] = setTimeout(() => {
+			current.textContent = newChar;
+			current.style.transition = "";
+			current.style.transform = "translateY(0)";
+			current.style.opacity = "1";
+			next.style.opacity = "0";
+			next.style.transform = "translateY(100%)";
+			next.style.transition = "";
+			this._digitAnimationTimers[idx] = null;
+		}, duration + 50);
 	}
 
 	doListen() {
@@ -699,32 +766,32 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 						random_pos = true;
 						this._elements.lu.innerHTML = ts;
 					}
-					
-					var markings_offset = 0;
-					
-					if (this._elements.digit) {
-						for (var d = 0; d < total_digits; d++) {
-							dig_val = cntr_str.substring(d, d + 1);
-							this._elements.digit[(i * 15) + d].innerHTML = dig_val;
-							this._elements.digit_window[i * 15 + d].style.display = "inline-block";
-							if (random_pos && this._config['random_shift' + suffix] !== undefined && this._config['random_shift' + suffix] > 0) {
-								this._elements.digit[i * 15 + d].style.top = Math.round(Math.random() * 2 * this._config['random_shift' + suffix] - this._config['random_shift' + suffix]) + "px";
-							}
-							if (this._config['random_shift' + suffix] === '' || this._config['random_shift' + suffix] === undefined || this._config['random_shift' + suffix] == 0) {
-								this._elements.digit[i * 15 + d].style.top = 0;
-							}
-							
-							//if markings are enabled, make the last window wider
-							if (this._config['markings' + suffix] && d == (total_digits - 1)) {
-								this._elements.digit_window[i * 15 + d].style.width = "24px";
-								markings_offset = 6;	//move other elements by this number of pixels to the right
-							} else {
-								this._elements.digit_window[i * 15 + d].style.removeProperty('width');
-							}
-						}
-					}
-					//hide the rest of digits
-					for (var d = total_digits; d < 15; d++) {
+                    var markings_offset = 0;
+                    var power_direction = this._getPowerDirection();
+                    if (this._elements.digit) {
+                            for (var d = 0; d < total_digits; d++) {
+                                    dig_val = cntr_str.substring(d, d + 1);
+                                    var digitIndex = (i * 15) + d;
+                                    if (d === total_digits - 1 && this._config.power_entity && this._elements.digit_current[digitIndex] && this._elements.digit_next[digitIndex]) {
+                                            this._animateRightmostDigit(i, d, dig_val, power_direction);
+                                    } else if (this._elements.digit[digitIndex]) {
+                                            this._elements.digit[digitIndex].innerHTML = dig_val;
+                                    }
+                                    this._elements.digit_window[digitIndex].style.display = "inline-block";
+                                    if (random_pos && this._config["random_shift" + suffix] !== undefined && this._config["random_shift" + suffix] > 0) {
+                                            this._elements.digit[digitIndex].style.top = Math.round(Math.random() * 2 * this._config["random_shift" + suffix] - this._config["random_shift" + suffix]) + "px";
+                                    }
+                                    if (this._config["random_shift" + suffix] === "" || this._config["random_shift" + suffix] === undefined || this._config["random_shift" + suffix] == 0) {
+                                            this._elements.digit[digitIndex].style.top = 0;
+                                    }
+                                    if (this._config["markings" + suffix] && d == (total_digits - 1)) {
+                                            this._elements.digit_window[digitIndex].style.width = "24px";
+                                            markings_offset = 6;    //move other elements by this number of pixels to the right
+                                    } else {
+                                            this._elements.digit_window[digitIndex].style.removeProperty("width");
+                                    }
+                            }
+                    }
 						this._elements.digit_window[i * 15 + d].style.display = "none";
 					}
 					this._elements.redbg[i].style.width = (30 * digits_right + (markings_offset * (digits_right > 0))) + "px";
@@ -978,7 +1045,7 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 			
 			this._elements.error.classList.add("osumc-error--hidden");
 		}
-    }
+    
 
     /*
 	doToggle() {
