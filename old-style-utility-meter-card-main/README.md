@@ -1,0 +1,186 @@
+# Old Style Utility Meter Card for Home Assistant
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
+
+Old Style Utility Meter Card for Home Assistant
+
+Customizable Utility Meter Card based on old style (non digital) utility meter box with rotating digits and an animated spinning wheel :new:.<br/>
+The card supports now up to 9 independent counters!<br/>
+This picture does a better job than describing it with words:
+
+![Old Style Utility Meter Card](https://github.com/LuckyG3000/old-style-utility-meter-card/blob/main/imgs/wheel_animation.webp?raw=true)
+
+This is my first custom card project.
+
+# Configuration
+
+Colors of almost all elements can be set to custom values.<br/>
+Font of digits can be either default (used by your HA dashboard) or Carlito, which is more resembling the font used on meter boxes.<br/>
+This card supports visual configuration editor.<br/>
+
+![Visual Configuration Editor](https://github.com/LuckyG3000/old-style-utility-meter-card/blob/main/imgs/visual_config.png?raw=true)
+
+## Example YAML Configuration
+These are all options, that can be configured. Only the entity is mandatory, all others are optional.
+
+```
+type: custom:old-style-utility-meter-card
+entity: sensor.kws_306wf_energy
+grid_options:
+  rows: 2
+  columns: full
+whole_digit_number: 5
+decimal_digit_number: 2
+scale: 100
+decimal_separator: Comma
+icon: mdi:lightning-bolt
+random_shift: 2
+font_url: Carlito
+font_size: 24px
+markings: true
+show_name: true
+name: Total Energy Usage
+font: Carlito
+digit_color: "#bbb"
+icon_color: red
+offset: 60577.5
+show_wheel: true
+speed_control_mode: Power
+wheel_speed: 2
+power_entity: sensor.kws_306wf_power
+marker_width: 75
+max_power_value: 10
+max_rot_time: 20
+min_rot_time: 1
+rot_time_per_kwh: 75
+unit: kWh
+plate_color: "#1B1B1B"
+name_color: "#f00"
+integer_plate_color: "#000"
+decimal_plate_color: red
+unit_plate_color: grey
+unit_color: "#ddd"
+decimal_separator_color: "#ccc"
+markings_color: "#fff"
+wheel_color: "#aaa"
+wheel_marker_color: "#000"
+digit_bg_color: black
+icon_background_color: black
+```
+
+## About configuration options
+
+Most of these options are pretty straightforward a don't need any explanation. You can find some hints in the visual configuration editor for most of the options.<br/>
+**Colors:** all color options (those ending with _color) must be entered in a CSS compatible syntax, e.g, ```"red", "#02DD7F", "#fff", "rgb(120, 120, 120)", "rgba(64, 64, 64, 0.75)"```...
+
+**Spinning wheel:** The rotating speed of the wheel can be either constant or dynamic based on value of optional entity (e.g. Power, Current, Flow etc.).
+
+Select the mode for speed config:
+```
+speed_control_mode: Fixed | Power | Realistic
+```
+
+In **```Fixed```** mode you set only the speed:
+```
+wheel_speed: 2
+```
+
+The number can be set in range -20 to 20 with 0.1 steps, where 0 means the wheel rotation will be disabled, the absolute value of any other number is **the time of a single rotation in seconds**. That means the closer is the number to zero, the faster will the wheel spin. Negative values will spin the wheel in reverse direction.
+
+In **```Power```** mode you must set the **```power_entity```** and the values for transforming the value of sensor to rotation time.
+
+**```power_entity: sensor.my_power_meter_3000_power```** - this is the entity providing the source value for wheel speed
+
+**```max_power_value: 10```** - this is the maximum expected value of the sensor at which the wheel should spin at maximum speed. Let's say you have a single phase smart socket with power monitoring capability, the usual max. would be 3.6 kW. For three phase meters connected to main household connection this value will be significantly higher.
+
+**```max_rot_time: 20```** - the time of a single rotation (in seconds) at minimal power (minimal value of the sensor above)
+
+**```min_rot_time: 1```** - the time of a single rotation (in seconds) at maximum power (maximum value of the sensor above)
+
+The formula for calculating the rotation time from these values is the following:
+
+> rotation_time = (max_rot_time + min_rot_time \* power_val / max_power_value) - (max_rot_time \* power_val / max_power_value)
+
+**Negative sensor values will reverse the wheel direction**. (Thanks to [@JoKohono](https://github.com/JoKohono))
+
+The **```Realistic```** mode is similar to **```Power```** mode, but uses a simplified calculation formula, for more realistic outcome.
+You have to set the **```power_entity```** and the number of rotations per consumed kWh (or any other unit your sensor gives):
+```
+rot_time_per_kwh: 75
+```
+The calculation formula for this mode is the following:
+
+> rotation_time = ((3600 / rot_time_per_kwh) \* 1000) / power_val
+
+**Important note:** If your Power sensor reports the power value in kW instead of W, multiply the above value by 1000, e.g.
+```
+rot_time_per_kwh: 75000
+```
+Credit for the Realistic mode goes to [@Khodrin](https://github.com/Khodrin), thank you!
+
+
+### Adding more counters
+You can add more counters to your card (up to 9 in total). The visual editor doesn't support this yet, you have to specify them in YAML (code editor).<br/>
+Options for additional counters have to end with a number suffix, e.g. ```_2``` for second counter, ```_3``` for third etc.
+Example for adding a second counter:
+```
+entity_2: sensor.smart_plug_kitchen_energy
+whole_digit_number_2: 5
+decimal_digit_number_2: 2
+scale_2: 100
+decimal_separator_2: Comma
+icon_2: mdi:lightning-bolt
+random_shift_2: 2
+markings_2: true
+show_name_2: true
+name_2: Kitchen Counter Energy Consumption
+decimal_plate_color_2: "#eebb11"
+```
+
+# Examples
+
+![Example 1](https://github.com/LuckyG3000/old-style-utility-meter-card/blob/main/imgs/old-style-utility-meter-card.png?raw=true)
+
+![Example 2](https://github.com/LuckyG3000/old-style-utility-meter-card/blob/main/imgs/example-0.png?raw=true)
+
+![Example 3](https://github.com/LuckyG3000/old-style-utility-meter-card/blob/main/imgs/example-1.png?raw=true)
+
+![Example 4](https://github.com/LuckyG3000/old-style-utility-meter-card/blob/main/imgs/example-2.png?raw=true)
+
+![Example 5](https://github.com/LuckyG3000/old-style-utility-meter-card/blob/main/imgs/example-3.png?raw=true)
+
+![Example 6](https://github.com/LuckyG3000/old-style-utility-meter-card/blob/main/imgs/example-4.png?raw=true)
+
+![Example 7 - Card with two counters](https://github.com/LuckyG3000/old-style-utility-meter-card/blob/main/imgs/example-5.png?raw=true)
+
+![Example 8 - Card with two counters, both with their names](https://github.com/LuckyG3000/old-style-utility-meter-card/blob/main/imgs/example-6.png?raw=true)
+
+![Example 9 - Card with four counters](https://github.com/LuckyG3000/old-style-utility-meter-card/blob/main/imgs/example-7.png?raw=true)
+
+![Example 10](https://github.com/LuckyG3000/old-style-utility-meter-card/blob/main/imgs/screenshot.png?raw=true)
+
+# Installation
+
+## HACS (recommended) 
+
+This card is available in [HACS](https://hacs.xyz/) (Home Assistant Community Store).
+
+<small>*HACS is a third party community store and is not included in Home Assistant out of the box.*</small>
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=LuckyG3000&repository=old-style-utility-meter-card)
+
+
+## Manual HACS install:
+Use [HACS](https://hacs.xyz/), follow the [instructions for adding a custom repository](https://hacs.xyz/docs/faq/custom_repositories).
+
+- Click on **HACS** in your HA side panel.
+- Then click on three dots in upper right corner, choose **Custom repositories**.
+- Paste the address of this repository into **Repository** field (`https://github.com/LuckyG3000/old-style-utility-meter-card`)
+- Choose **Dashboard** in **Type** dropdown, click **Add**.
+- The **Old Style Utility Meter Card** should appear in the list, click the three dots next to it and select **Download**.
+- When asked to **Reload**, confirm it.
+- Now you can add the card in your dashboard, click **Add card** and scroll to Custom cards. There you'll find the **Old Style Utility Meter Card**.
+- In configuration, select the desired entity, optionally change other settings.
+
+# Thanks
+
+I would like to thank to [@Elmar Hinz](https://github.com/elmar-hinz) for his [Custom Card Tutorials](https://github.com/home-assistant-tutorials), which helped me a lot during making this card.
