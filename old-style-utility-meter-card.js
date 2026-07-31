@@ -5,6 +5,7 @@
 *                           v1.4.0                           *
 * https://github.com/LuckyG3000/old-style-utility-meter-card *
 *           GNU GENERAL PUBLIC LICENSE version 3.0           *
+*                         Changed by TerMorab                *
 *                                                            *
 **************************************************************/
 
@@ -41,6 +42,7 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 	_hass;
 	_elements = {};
 	_isAttached = false;
+	_digitAnimationTimers = [];
 
 	// lifecycle
 	constructor() {
@@ -257,9 +259,11 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 				background-image: linear-gradient(rgba(128,128,128,0.75), #aaa, rgba(128,128,128,0.75));
 				color: transparent;
 				background-clip: text;
-				position: relative;
-				width: 17px;
-				height: 24px;
+				position: absolute;
+				left: 0;
+				top: 0;
+				width: 100%;
+				height: 100%;
 				display: block;
 				line-height: 24px;
 				text-align: center;
@@ -267,6 +271,12 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 				font-weight: 400;
 				font-style: normal;
 				font-size: 24px;
+				transition: transform 0.25s ease, opacity 0.25s ease;
+			}
+
+			.osumc-digit-text.osumc-digit-next {
+				opacity: 0;
+				transform: translateY(100%);
 			}
 
 			.osumc-red-bg {
@@ -562,14 +572,78 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 		this._elements.markings = card.querySelectorAll(".osumc-line_cont");
 		
 		this._elements.digit_window = card.querySelectorAll(".osumc-digit-window");
-		this._elements.digit = card.querySelectorAll(".osumc-digit-text");
+		this._elements.digit_current = card.querySelectorAll(".osumc-digit-text.osumc-digit-current");
+		this._elements.digit_next = card.querySelectorAll(".osumc-digit-text.osumc-digit-next");
+		this._elements.digit = this._elements.digit_current;
 		
-
 		this._elements.wheel_window = card.querySelector(".osumc-wheel-window");
 		this._elements.wheel = card.querySelector(".osumc-wheel");
 		this._elements.wheel_marker = card.querySelector(".osumc-wheel-marker");
 
 		this._elements.lu = card.querySelector("#osumc-last-update");
+	}
+
+	_getPowerDirection() {
+		if (!this._config.power_entity || typeof this._config.power_entity !== "string") {
+			return 0;
+		}
+		const powerState = this._hass?.states?.[this._config.power_entity]?.state;
+		const powerVal = parseFloat(powerState);
+		if (!isNumeric(powerVal) || powerVal === 0) {
+			return 0;
+		}
+		return powerVal > 0 ? 1 : -1;
+	}
+
+	_animateRightmostDigit(counterIndex, digitIndex, newChar, direction) {
+		const idx = counterIndex * 15 + digitIndex;
+		const current = this._elements.digit_current[idx];
+		const next = this._elements.digit_next[idx];
+		if (!current || !next) {
+			return;
+		}
+		const oldChar = current.textContent;
+		if (oldChar === newChar || direction === 0) {
+			current.textContent = newChar;
+			current.style.transition = "";
+			current.style.transform = "translateY(0)";
+			current.style.opacity = "1";
+			next.style.opacity = "0";
+			next.style.transform = "translateY(100%)";
+			return;
+		}
+		if (this._digitAnimationTimers[idx]) {
+			clearTimeout(this._digitAnimationTimers[idx]);
+			this._digitAnimationTimers[idx] = null;
+		}
+		next.textContent = newChar;
+		next.style.transition = "none";
+		next.style.transform = direction > 0 ? "translateY(100%)" : "translateY(-100%)";
+		next.style.opacity = "0";
+		current.style.transition = "none";
+		current.style.transform = "translateY(0)";
+		current.style.opacity = "1";
+		next.offsetHeight;
+		current.offsetHeight;
+		const duration = 250;
+		current.style.transition = `transform ${duration}ms ease, opacity ${duration}ms ease`;
+		next.style.transition = `transform ${duration}ms ease, opacity ${duration}ms ease`;
+		requestAnimationFrame(() => {
+			current.style.transform = direction > 0 ? "translateY(-100%)" : "translateY(100%)";
+			current.style.opacity = "0";
+			next.style.transform = "translateY(0)";
+			next.style.opacity = "1";
+		});
+		this._digitAnimationTimers[idx] = setTimeout(() => {
+			current.textContent = newChar;
+			current.style.transition = "";
+			current.style.transform = "translateY(0)";
+			current.style.opacity = "1";
+			next.style.opacity = "0";
+			next.style.transform = "translateY(100%)";
+			next.style.transition = "";
+			this._digitAnimationTimers[idx] = null;
+		}, duration + 50);
 	}
 
 	doListen() {
