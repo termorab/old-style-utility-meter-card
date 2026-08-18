@@ -42,6 +42,10 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 	_elements = {};
 	_isAttached = false;
 
+	//Roller
+	_rollers = [];            // array with per-counter roller info
+	_rollerRaf = null;        // current requestAnimationFrame id
+
 	// lifecycle
 	constructor() {
 		super();
@@ -445,7 +449,28 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 				animation-iteration-count: infinite;
 				animation-timing-function: linear;
 			}
-
+			
+			.osumc-digit-roller {
+			  position: relative;
+			  display: block;
+			  height: 24px;
+			  overflow: hidden;
+			}
+			.osumc-digit-roller-inner {
+			  position: absolute;
+			  left: 0;
+			  right: 0;
+			  top: 0;
+			  transition: transform 0.1s linear;
+			  will-change: transform;
+			}
+			.osumc-digit-roller-item {
+			  display: block;
+			  height: 24px;
+			  line-height: 24px;
+			  text-align: center;
+			}
+			
 			@keyframes osumc-wheel-animation {
 				0% {left: -2%; width: calc(var(--marker-width) * (10/30)); margin-left: calc(var(--marker-width) * (-5/30)); opacity: 0.6;}
 				7% {left: 7%; width: calc(var(--marker-width) * (22/30)); margin-left: calc(var(--marker-width) * (-10/30)); opacity: 0.8;}
@@ -580,6 +605,71 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 		this._elements.wheel_window.addEventListener("click", this.onClicked1.bind(this, 0), false);
 	}
 
+	_startRollAnimation() {
+	  if (this._rollerRaf) return;
+	  const loop = (ts) => {
+		this._updateRollers();
+		this._rollerRaf = requestAnimationFrame(loop);
+	  };
+	  this._rollerRaf = requestAnimationFrame(loop);
+	}
+	
+	_stopRollAnimation() {
+	  if (this._rollerRaf) {
+		cancelAnimationFrame(this._rollerRaf);
+		this._rollerRaf = null;
+	  }
+	}
+	
+	_updateRollers() {
+	  // For each configured counter that has a roller object, compute an estimated
+	  // counter value and move its rollerInner translate accordingly.
+	  for (let i = 0; i < MAX_COUNTERS; i++) {
+		const r = this._rollers[i];
+		if (!r) continue;
+		const suffix = (i > 0) ? '_' + (i + 1) : '';
+		const entityId = this._config['entity' + suffix];
+		if (!entityId) continue;
+		// read base entity value and last update time
+		const stateObj = this._hass.states[entityId];
+		if (!stateObj) continue;
+		const baseVal = parseFloat(stateObj.state) || 0;
+		const lastUpdated = new Date(stateObj.last_updated).getTime() / 1000;
+		// read power if configured
+		let powerVal = 0;
+		if (this._config.power_entity && this._hass.states[this._config.power_entity]) {
+		  powerVal = parseFloat(this._hass.states[this._config.power_entity].state) || 0;
+		  // adjust if power_entity unit is kW -> convert to W
+		  const pUnit = (this._hass.states[this._config.power_entity].attributes || {}).unit_of_measurement || '';
+		  if (String(pUnit).toLowerCase().includes('kw')) {
+			powerVal = powerVal * 1000; // now in W
+		  }
+		}
+		// estimate current value from last update using power (power in W)
+		const nowS = Date.now() / 1000;
+		const deltaS = Math.max(0, nowS - lastUpdated);
+		const estVal = baseVal + (powerVal * deltaS) / 3600000; // converts W * s -> kWh
+		// compute scaling depending on decimal digits used for that counter
+		const digits_right = Number(this._config['decimal_digit_number' + suffix] || 0);
+		const factor = Math.pow(10, digits_right);
+		const scaled = estVal * factor; // e.g. last digit is units of 1/factor
+		// determine the integer value of the digit and the fractional progress between digits
+		let digitIndex = Math.floor(Math.abs(scaled)) % 10; // 0-9
+		let frac = Math.abs(scaled) - Math.floor(Math.abs(scaled)); // 0..1
+		// direction: positive power => roll up (increasing), negative => roll down
+		const direction = (powerVal >= 0) ? 1 : -1;
+		// compute translateY in px. each item height:
+		const itemH = r.itemHeight || 24;
+		// when direction is positive we want translate = -(digit + frac) * itemH
+		// when negative we want translate = -(digit - frac) * itemH
+		const pos = (direction >= 0) ? (digitIndex + frac) : (digitIndex - frac);
+		// clamp pos to 0..9 (we rely on 0..9 stack)
+		const clamped = ((pos % 10) + 10) % 10;
+		const translateY = -clamped * itemH;
+		r.inner.style.transform = `translateY(${translateY}px)`;
+	  }
+	}
+	
 	doUpdateConfig() {
 		if (this.getHeader()) {
 			this._elements.card.setAttribute("header", this.getHeader());
@@ -847,6 +937,34 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 						}
 					}
 					
+					// after digits for this counter are rendered, ensure roller exists for the last (LSB) digit
+					const lastD = total_digits - 1;
+					if (lastD >= 0) {
+					  const idx = i * 15 + lastD;
+					  const win = this._elements.digit_window[idx];
+					  // create roller if not present
+					  if (win && !win.querySelector('.osumc-digit-roller')) {
+					    // preserve width/height, then replace text with roller
+					    win.innerHTML = ''; // remove plain .osumc-digit-text
+					    const roller = document.createElement('div');
+					    roller.className = 'osumc-digit-roller';
+					    const inner = document.createElement('div');
+					    inner.className = 'osumc-digit-roller-inner';
+					    // create digits 0..9 stacked vertically
+					    for (let n = 0; n < 10; n++) {
+					      const it = document.createElement('span');
+					      it.className = 'osumc-digit-roller-item';
+					      it.textContent = n;
+					      inner.appendChild(it);
+					    }
+					    roller.appendChild(inner);
+					    win.appendChild(roller);
+					    // store references
+					    const h = (inner.children[0].getBoundingClientRect().height) || 24;
+					    this._rollers[i] = { inner: inner, itemHeight: h };
+					  }
+					}
+
 					
 					if (this._config['decimal_separator_color' + suffix] != undefined && this._config['decimal_separator_color' + suffix] != '') {
 						this._elements.dp[i].style.color = this._config['decimal_separator_color' + suffix];
@@ -975,6 +1093,12 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 				this._elements.wheel_window.style.display = "none";
 			}
 			
+			// if there is at least one roller configured and power_entity exists, start animation
+			if (this._rollers.some(x => x)) {
+			  this._startRollAnimation();
+			} else {
+			  this._stopRollAnimation();
+			}
 			
 			this._elements.error.classList.add("osumc-error--hidden");
 		}
