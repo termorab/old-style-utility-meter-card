@@ -621,52 +621,44 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 	  }
 	}
 	
-	_updateRollers() {
-	  // For each configured counter that has a roller object, compute an estimated
-	  // counter value and move its rollerInner translate accordingly.
-	  for (let i = 0; i < MAX_COUNTERS; i++) {
-		const r = this._rollers[i];
-		if (!r) continue;
-		const suffix = (i > 0) ? '_' + (i + 1) : '';
-		const entityId = this._config['entity' + suffix];
-		if (!entityId) continue;
-		// read base entity value and last update time
-		const stateObj = this._hass.states[entityId];
-		if (!stateObj) continue;
-		const baseVal = parseFloat(stateObj.state) || 0;
-		const lastUpdated = new Date(stateObj.last_updated).getTime() / 1000;
-		// read power if configured
-		let powerVal = 0;
-		if (this._config.power_entity && this._hass.states[this._config.power_entity]) {
-		  powerVal = parseFloat(this._hass.states[this._config.power_entity].state) || 0;
-		  // adjust if power_entity unit is kW -> convert to W
-		  const pUnit = (this._hass.states[this._config.power_entity].attributes || {}).unit_of_measurement || '';
-		  if (String(pUnit).toLowerCase().includes('kw')) {
-			powerVal = powerVal * 1000; // now in W
-		  }
+	_update_rollers_single(i) {
+	  const r = this._rollers[i];
+	  if (!r) return;
+	  const suffix = (i > 0) ? '_' + (i + 1) : '';
+	  const entityId = this._config['entity' + suffix];
+	  if (!entityId) return;
+	  const stateObj = this._hass.states[entityId];
+	  if (!stateObj) return;
+	  const baseVal = parseFloat(stateObj.state) || 0;
+	  const lastUpdated = new Date(stateObj.last_updated).getTime() / 1000;
+	  let powerVal = 0;
+	  if (this._config.power_entity && this._hass.states[this._config.power_entity]) {
+		powerVal = parseFloat(this._hass.states[this._config.power_entity].state) || 0;
+		const pUnit = (this._hass.states[this._config.power_entity].attributes || {}).unit_of_measurement || '';
+		if (String(pUnit).toLowerCase().includes('kw')) {
+		  powerVal = powerVal * 1000;
 		}
-		// estimate current value from last update using power (power in W)
-		const nowS = Date.now() / 1000;
-		const deltaS = Math.max(0, nowS - lastUpdated);
-		const estVal = baseVal + (powerVal * deltaS) / 3600000; // converts W * s -> kWh
-		// compute scaling depending on decimal digits used for that counter
-		const digits_right = Number(this._config['decimal_digit_number' + suffix] || 0);
-		const factor = Math.pow(10, digits_right);
-		const scaled = estVal * factor; // e.g. last digit is units of 1/factor
-		// determine the integer value of the digit and the fractional progress between digits
-		let digitIndex = Math.floor(Math.abs(scaled)) % 10; // 0-9
-		let frac = Math.abs(scaled) - Math.floor(Math.abs(scaled)); // 0..1
-		// direction: positive power => roll up (increasing), negative => roll down
-		const direction = (powerVal >= 0) ? 1 : -1;
-		// compute translateY in px. each item height:
-		const itemH = r.itemHeight || 24;
-		// when direction is positive we want translate = -(digit + frac) * itemH
-		// when negative we want translate = -(digit - frac) * itemH
-		const pos = (direction >= 0) ? (digitIndex + frac) : (digitIndex - frac);
-		// clamp pos to 0..9 (we rely on 0..9 stack)
-		const clamped = ((pos % 10) + 10) % 10;
-		const translateY = -clamped * itemH;
-		r.inner.style.transform = `translateY(${translateY}px)`;
+	  }
+	  const nowS = Date.now() / 1000;
+	  const deltaS = Math.max(0, nowS - lastUpdated);
+	  const estVal = baseVal + (powerVal * deltaS) / 3600000;
+	  const digits_right = Number(this._config['decimal_digit_number' + suffix] || 0);
+	  const factor = Math.pow(10, digits_right);
+	  const scaled = estVal * factor;
+	  let digitIndex = Math.floor(Math.abs(scaled)) % 10;
+	  let frac = Math.abs(scaled) - Math.floor(Math.abs(scaled));
+	  const direction = (powerVal >= 0) ? 1 : -1;
+	  const itemH = r.itemHeight || 24;
+	  const pos = (direction >= 0) ? (digitIndex + frac) : (digitIndex - frac);
+	  const clamped = ((pos % 10) + 10) % 10;
+	  const translateY = -clamped * itemH;
+	  r.inner.style.transform = `translateY(${translateY}px)`;
+	}
+
+	_updateRollers() {
+	  // For this POC only update roller for the first (main) counter (index 0)
+	  if (this._rollers[0]) {
+		this._update_rollers_single(0);
 	  }
 	}
 	
@@ -943,7 +935,8 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 					  const idx = i * 15 + lastD;
 					  const win = this._elements.digit_window[idx];
 					  // create roller if not present
-					  if (win && !win.querySelector('.osumc-digit-roller')) {
+					  // For POC: only create roller for main first counter (i==0)
+					  if (i === 0 && win && !win.querySelector('.osumc-digit-roller')) {
 					    // preserve width/height, then replace text with roller
 					    win.innerHTML = ''; // remove plain .osumc-digit-text
 					    const roller = document.createElement('div');
@@ -959,9 +952,9 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 					    }
 					    roller.appendChild(inner);
 					    win.appendChild(roller);
-					    // store references
+					    // store references (only for index 0)
 					    const h = (inner.children[0].getBoundingClientRect().height) || 24;
-					    this._rollers[i] = { inner: inner, itemHeight: h };
+					    this._rollers[0] = { inner: inner, itemHeight: h };
 					  }
 					}
 
@@ -1094,7 +1087,8 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 			}
 			
 			// if there is at least one roller configured and power_entity exists, start animation
-			if (this._rollers.some(x => x)) {
+			// POC: only start if main roller exists
+			if (this._rollers[0]) {
 			  this._startRollAnimation();
 			} else {
 			  this._stopRollAnimation();
@@ -1227,7 +1221,7 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 				case "show_wheel":
 					return "Shows a rotating wheel with marker, like on real electricity meter";
 				case "speed_control_mode":
-					return "Fixed - the wheel rotates with constant speed defined below. Power - the speed depends on sensor value of a defined entity, can be Power, Current, Flow... Realistic - Emulates real utility meters";
+					return "Fixed - the wheel rotates with constant speed defined below. Power - the speed depends on sensor value of a defined entity, can be Power, Current, Flow... Realistic - Emulates real utilit[...]
 				case "wheel_speed":
 					return "Speed of the wheel. Number of seconds per single rotation (-20 to 20, 0 = STOP, 0.1 - fastest, 20 - slowest, negative values = reverse direction)";
 				case "power_entity":
@@ -1239,7 +1233,7 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 				case "max_power_value":
 					return "Maximum expected value of the above entity, at which the wheel will rotate at max speed. See Readme for deeper explanation.";
 				case "scale":
-					return "Set the scale of the counter (default = 100%). In case you have too many digits that you want to display and the counter doesn't fit into card. Or if you want to make the counter bigger.";
+					return "Set the scale of the counter (default = 100%). In case you have too many digits that you want to display and the counter doesn't fit into card. Or if you want to make the counter bigger."[...]
 				case "rot_time_per_kwh":
 					return "Set the amount of rotations the wheel should complete per used kwh. Default value is 75. If your Power Entity returns kW instead of W, enter the value multiplied by 1000 (75.000).";
 			}
