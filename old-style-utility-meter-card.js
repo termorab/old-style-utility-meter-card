@@ -1237,7 +1237,7 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 				case "show_wheel":
 					return "Shows a rotating wheel with marker, like on real electricity meter";
 				case "speed_control_mode":
-					return "Fixed - the wheel rotates with constant speed defined below. Power - the speed depends on sensor value of a defined entity, can be Power, Current, Flow... Realistic - Emulates real utilit";
+					return "Fixed - the wheel rotates with constant speed defined below. Power - the speed depends on sensor value of a defined entity, can be Power, Current, Flow... Realistic - Emulates real utility meters";
 				case "wheel_speed":
 					return "Speed of the wheel. Number of seconds per single rotation (-20 to 20, 0 = STOP, 0.1 - fastest, 20 - slowest, negative values = reverse direction)";
 				case "power_entity":
