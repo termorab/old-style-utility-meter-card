@@ -1237,7 +1237,7 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 				case "show_wheel":
 					return "Shows a rotating wheel with marker, like on real electricity meter";
 				case "speed_control_mode":
-					return "Fixed - the wheel rotates with constant speed defined below. Power - the speed depends on sensor value of a defined entity, can be Power, Current, Flow... Realistic - Emulates real utilit[...]
+					return "Fixed - the wheel rotates with constant speed defined below. Power - the speed depends on sensor value of a defined entity, can be Power, Current, Flow... Realistic - Emulates real utilit";
 				case "wheel_speed":
 					return "Speed of the wheel. Number of seconds per single rotation (-20 to 20, 0 = STOP, 0.1 - fastest, 20 - slowest, negative values = reverse direction)";
 				case "power_entity":
@@ -1249,7 +1249,7 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 				case "max_power_value":
 					return "Maximum expected value of the above entity, at which the wheel will rotate at max speed. See Readme for deeper explanation.";
 				case "scale":
-					return "Set the scale of the counter (default = 100%). In case you have too many digits that you want to display and the counter doesn't fit into card. Or if you want to make the counter bigger."[...]
+					return "Set the scale of the counter (default = 100%). In case you have too many digits that you want to display and the counter doesn't fit into card. Or if you want to make the counter bigger.";
 				case "rot_time_per_kwh":
 					return "Set the amount of rotations the wheel should complete per used kwh. Default value is 75. If your Power Entity returns kW instead of W, enter the value multiplied by 1000 (75.000).";
 			}
