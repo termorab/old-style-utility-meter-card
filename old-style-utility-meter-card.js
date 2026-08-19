@@ -624,48 +624,53 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 	_updateRollers() {
 	  // Update roller for each configured counter that has a roller object
 	  for (let i = 0; i < MAX_COUNTERS; i++) {
-		const r = this._rollers[i];
-		if (!r) continue;
-		const suffix = (i > 0) ? '_' + (i + 1) : '';
-		const entityId = this._config['entity' + suffix];
-		if (!entityId) continue;
-		// read base entity value and last update time
-		const stateObj = this._hass.states[entityId];
-		if (!stateObj) continue;
-		const baseVal = parseFloat(stateObj.state) || 0;
-		const lastUpdated = new Date(stateObj.last_updated).getTime() / 1000;
-		// read power if configured
-		let powerVal = 0;
-		if (this._config.power_entity && this._hass.states[this._config.power_entity]) {
-		  powerVal = parseFloat(this._hass.states[this._config.power_entity].state) || 0;
-		  // adjust if power_entity unit is kW -> convert to W
-		  const pUnit = (this._hass.states[this._config.power_entity].attributes || {}).unit_of_measurement || '';
-		  if (String(pUnit).toLowerCase().includes('kw')) {
-			powerVal = powerVal * 1000; // now in W
-		  }
-		}
-		// estimate current value from last update using power (power in W)
-		const nowS = Date.now() / 1000;
-		const deltaS = Math.max(0, nowS - lastUpdated);
-		const estVal = baseVal + (powerVal * deltaS) / 3600000; // converts W * s -> kWh
-		// compute scaling depending on decimal digits used for that counter
-		const digits_right = Number(this._config['decimal_digit_number' + suffix] || 0);
-		const factor = Math.pow(10, digits_right);
-		const scaled = estVal * factor; // e.g. last digit is units of 1/factor
-		// determine the integer value of the digit and the fractional progress between digits
-		let digitIndex = Math.floor(Math.abs(scaled)) % 10; // 0-9
-		let frac = Math.abs(scaled) - Math.floor(Math.abs(scaled)); // 0..1
-		// direction: positive power => roll up (increasing), negative => roll down
-		const direction = (powerVal >= 0) ? 1 : -1;
-		// compute translateY in px. each item height:
-		const itemH = r.itemHeight || 24;
-		// when direction is positive we want translate = -(digit + frac) * itemH
-		// when negative we want translate = -(digit - frac) * itemH
-		const pos = (direction >= 0) ? (digitIndex + frac) : (digitIndex - frac);
-		// clamp pos to 0..9 (we rely on 0..9 stack)
-		const clamped = ((pos % 10) + 10) % 10;
-		const translateY = -clamped * itemH;
-		r.inner.style.transform = `translateY(${translateY}px)`;
+	    const r = this._rollers[i];
+	    if (!r) continue;
+	    const suffix = (i > 0) ? '_' + (i + 1) : '';
+	    const entityId = this._config['entity' + suffix];
+	    if (!entityId) continue;
+	    // read base entity value and last update time
+	    const stateObj = this._hass.states[entityId];
+	    if (!stateObj) continue;
+	    const baseVal = parseFloat(stateObj.state) || 0;
+	    const lastUpdated = new Date(stateObj.last_updated).getTime() / 1000;
+	    // read power if configured
+	    let powerVal = 0;
+	    if (this._config.power_entity && this._hass.states[this._config.power_entity]) {
+	      powerVal = parseFloat(this._hass.states[this._config.power_entity].state) || 0;
+	      // adjust if power_entity unit is kW -> convert to W
+	      const pUnit = (this._hass.states[this._config.power_entity].attributes || {}).unit_of_measurement || '';
+	      if (String(pUnit).toLowerCase().includes('kw')) {
+	        powerVal = powerVal * 1000; // now in W
+	      }
+	    }
+	    // estimate current value from last update using power (power in W)
+	    const nowS = Date.now() / 1000;
+	    const deltaS = Math.max(0, nowS - lastUpdated);
+	    const estVal = baseVal + (powerVal * deltaS) / 3600000; // converts W * s -> kWh
+	    // compute scaling depending on decimal digits used for that counter
+	    const digits_right = Number(this._config['decimal_digit_number' + suffix] || 0);
+	    const factor = Math.pow(10, digits_right);
+	    const scaled = estVal * factor; // e.g. last digit is units of 1/factor
+	
+	    // compute digit index and fractional amount while preserving sign
+	    const scaledFloor = Math.floor(scaled); // floor preserves sign
+	    // digitIndex in 0..9 (wrap properly for negative floors)
+	    const digitIndex = ((scaledFloor % 10) + 10) % 10;
+	    // fractional part (0..1) as distance from the floored integer
+	    const frac = Math.abs(scaled - scaledFloor);
+	
+	    // direction: positive power => roll up (increasing), negative => roll down
+	    const direction = (powerVal >= 0) ? 1 : -1;
+	    // compute translateY in px. each item height:
+	    const itemH = r.itemHeight || 24;
+	    // when direction is positive we want translate = -(digit + frac) * itemH
+	    // when negative we want translate = -(digit - frac) * itemH
+	    const pos = (direction >= 0) ? (digitIndex + frac) : (digitIndex - frac);
+	    // clamp pos to 0..9 (we rely on 0..9 stack)
+	    const clamped = ((pos % 10) + 10) % 10;
+	    const translateY = -clamped * itemH;
+	    r.inner.style.transform = `translateY(${translateY}px)`;
 	  }
 	}
 	
