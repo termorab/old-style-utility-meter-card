@@ -653,24 +653,29 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 	    const factor = Math.pow(10, digits_right);
 	    const scaled = estVal * factor; // e.g. last digit is units of 1/factor
 	
-	    // compute digit index and fractional amount while preserving sign
-	    const scaledFloor = Math.floor(scaled); // floor preserves sign
-	    // digitIndex in 0..9 (wrap properly for negative floors)
-	    const digitIndex = ((scaledFloor % 10) + 10) % 10;
-	    // fractional part (0..1) as distance from the floored integer
-	    const frac = Math.abs(scaled - scaledFloor);
-	
-	    // direction: positive power => roll up (increasing), negative => roll down
-	    const direction = (powerVal >= 0) ? 1 : -1;
-	    // compute translateY in px. each item height:
-	    const itemH = r.itemHeight || 24;
-	    // when direction is positive we want translate = -(digit + frac) * itemH
-	    // when negative we want translate = -(digit - frac) * itemH
-	    const pos = (direction >= 0) ? (digitIndex + frac) : (digitIndex - frac);
-	    // clamp pos to 0..9 (we rely on 0..9 stack)
-	    const clamped = ((pos % 10) + 10) % 10;
-	    const translateY = -clamped * itemH;
-	    r.inner.style.transform = `translateY(${translateY}px)`;
+		// compute digit index and fractional amount using absolute value (fixes negative-flow behaviour)
+		const absScaled = Math.abs(scaled);
+		const intPart = Math.floor(absScaled);           // integer part of absolute value
+		const digitIndex = intPart % 10;                // 0..9
+		const frac = absScaled - intPart;               // fractional part 0..1
+		
+		// direction: positive power => roll up (increasing), negative => roll down
+		const direction = (powerVal >= 0) ? 1 : -1;
+		
+		// compute translateY in px (each item height)
+		const itemH = r.itemHeight || 24;
+		
+		let pos;
+		if (direction >= 0) {
+		  // increasing: show digitIndex + fractional progress upward
+		  pos = digitIndex + frac;
+		} else {
+		  // decreasing: move toward the previous digit; wrap correctly
+		  pos = (digitIndex - frac + 10) % 10;
+		}
+		
+		const translateY = -pos * itemH;
+		r.inner.style.transform = `translateY(${translateY}px)`;
 	  }
 	}
 	
