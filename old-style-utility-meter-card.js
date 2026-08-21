@@ -622,85 +622,118 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 	}
 
 	_updateRollers() {
-		const nowS = Date.now() / 1000;
-
+		// Update roller for each configured counter that has a roller object
 		for (let i = 0; i < MAX_COUNTERS; i++) {
 			const r = this._rollers[i];
 			if (!r) continue;
 			const suffix = (i > 0) ? '_' + (i + 1) : '';
 			const entityId = this._config['entity' + suffix];
 			if (!entityId) continue;
-
+			// read base entity value and last update time
 			const stateObj = this._hass.states[entityId];
 			if (!stateObj) continue;
 			const baseVal = parseFloat(stateObj.state) || 0;
 			const lastUpdated = new Date(stateObj.last_updated).getTime() / 1000;
-
 			// read power if configured
 			let powerVal = 0;
 			if (this._config.power_entity && this._hass.states[this._config.power_entity]) {
 				powerVal = parseFloat(this._hass.states[this._config.power_entity].state) || 0;
+				// adjust if power_entity unit is kW -> convert to W
 				const pUnit = (this._hass.states[this._config.power_entity].attributes || {}).unit_of_measurement || '';
 				if (String(pUnit).toLowerCase().includes('kw')) {
-					powerVal = powerVal * 1000; // convert kW -> W
+					powerVal = powerVal * 1000; // now in W
 				}
 			}
-
-			// estimate base value (kept for initialization / occasional snap)
-			const deltaS_from_state = Math.max(0, nowS - lastUpdated);
-			const estVal = baseVal + (powerVal * deltaS_from_state) / 3600000; // W * s -> kWh
-
-			// compute scale for last digit (decimal places)
+			// estimate current value from last update using power (power in W)
+			const nowS = Date.now() / 1000;
+			const deltaS = Math.max(0, nowS - lastUpdated);
+			const estVal = baseVal + (powerVal * deltaS) / 3600000; // converts W * s -> kWh
+			// compute scaling depending on decimal digits used for that counter
 			const digits_right = Number(this._config['decimal_digit_number' + suffix] || 0);
 			const factor = Math.pow(10, digits_right);
+			const scaled = estVal * factor; // scaled value (signed)
 
-			// compute nominal fractional position for the least-significant displayed digit
-			const scaledAbs = Math.abs(estVal * factor);
-			const intPartAbs = Math.floor(scaledAbs);
-			const digitIndex = intPartAbs % 10;
-			const frac = scaledAbs - intPartAbs;
-			const posBase = digitIndex + frac; // 0..10-ish (fractional digit index)
+			// compute digit index and fractional amount using magnitude
+			const absScaled = Math.abs(scaled);
+			const intPartAbs = Math.floor(absScaled);
+			const digitIndex = intPartAbs % 10;                // 0..9
+			const frac = absScaled - intPartAbs;               // fractional part 0..1
 
-			// ensure items / itemHeight are available
+			// direction: positive power => roll up (increasing), negative => roll down (decreasing)
+			const direction = (powerVal >= 0) ? 1 : -1;
+
+			// each roller item height
 			const itemH = r.itemHeight || 24;
+
+			// base target position for the digit wheel (0..10)
+			const posBase = digitIndex + frac;
+
+			// inner count (we expect 3 copies -> 30 items, but read it dynamically)
 			const innerCount = (r.inner && r.inner.children) ? r.inner.children.length : 30;
 
-			// initialize r.pos to the middle copy (posBase + 10) if missing
-			if (r.pos === undefined || r.pos === null) {
-				r.pos = posBase + 10;
-				// set transform immediately
-				r.inner.style.transform = `translateY(${-r.pos * itemH}px)`;
-				r._lastFrame = nowS;
+			// recover previous logical position if available (in extended domain)
+			let prevPos = (r.pos !== undefined) ? r.pos : null;
+			if (prevPos === null) {
+				const tf = (r.inner && r.inner.style && r.inner.style.transform) ? r.inner.style.transform : '';
+				const m = tf.match(/translateY\((-?[\d.]+)px\)/);
+				if (m) {
+					const curY = parseFloat(m[1]);
+					if (!isNaN(curY) && itemH !== 0) {
+						prevPos = -curY / itemH;
+					}
+				}
+			}
+			if (prevPos === null) {
+				// fallback init in middle copy (center around +10)
+				prevPos = posBase + 10;
+			}
+
+			// build candidate positions (extended domain). Include a further +20 candidate so
+			// wrapping up from 9->0 can advance into the third copy smoothly.
+			const rawCandidates = [posBase - 10, posBase, posBase + 10, posBase + 20];
+			// filter candidates that actually map into existing indexes [0, innerCount-1]
+			const candidates = rawCandidates.filter(c => c >= 0 && c <= innerCount - 1);
+
+			// If no valid candidate after filtering (unlikely), just use posBase clamped into range
+			if (candidates.length === 0) {
+				let clamped = Math.max(0, Math.min(innerCount - 1, posBase + 10));
+				r.pos = clamped;
+				const translateY_fallback = -r.pos * itemH;
+				if (!isNaN(translateY_fallback) && r.inner) {
+					r.inner.style.transform = `translateY(${translateY_fallback}px)`;
+				}
 				continue;
 			}
 
-			// compute dt since last roller update (fallback to small dt)
-			const lastFrame = r._lastFrame || nowS;
-			const dt = Math.max(0, Math.min(1, nowS - lastFrame)); // clamp dt to avoid huge jumps
-			r._lastFrame = nowS;
-
-			// ticks per second: derived from power (W) -> kWh/s = power / 3600000; multiply by factor = ticks/sec
-			const ticksPerSecond = (powerVal / 3600000) * factor;
-
-			// integrate position using speed (this makes speed changes smooth, position continuous)
-			r.pos += ticksPerSecond * dt;
-
-			// keep r.pos inside the "middle area" so we always have digits around it.
-			// the inner typically contains 3 copies -> length ~ 30; keep pos around middle copy (10..19)
-			// if pos wandered out, fold it back by adding/subtracting 10 as needed
-			while (r.pos < 10) r.pos += 10;
-			while (r.pos >= innerCount - 10) r.pos -= 10;
-
-			// Occasionally correct huge drift vs. instantaneous estimate (e.g., after sensor reset):
-			const targetPos = posBase + 10; // where the instant estimate would put us
-			const drift = Math.abs(r.pos - targetPos);
-			const driftSnapThreshold = 20; // tweakable: if discrepancy larger than this many ticks, snap
-			if (drift > driftSnapThreshold) {
-				r.pos = targetPos;
+			// pick candidate that continues motion in intended direction (smallest abs delta > 0 in that direction).
+			// If none move in that direction, pick the nearest candidate (smallest abs delta).
+			let chosen = candidates[0];
+			let bestScore = Infinity;
+			let foundSameDir = false;
+			for (let c = 0; c < candidates.length; c++) {
+				const cand = candidates[c];
+				const delta = cand - prevPos;
+				const absDelta = Math.abs(delta);
+				const sameDir = (delta === 0) || (direction > 0 ? delta > 0 : delta < 0);
+				if (sameDir) {
+					if (!foundSameDir || absDelta < bestScore) {
+						foundSameDir = true;
+						bestScore = absDelta;
+						chosen = cand;
+					}
+				} else if (!foundSameDir) {
+					if (absDelta < bestScore) {
+						bestScore = absDelta;
+						chosen = cand;
+					}
+				}
 			}
 
-			// apply transform
-			const translateY = -r.pos * itemH;
+			// store chosen logical position for continuity
+			r.pos = chosen;
+
+			// apply transform directly (inner has repeated copies so chosen index exists)
+			const translateY = -chosen * itemH;
 			if (!isNaN(translateY) && r.inner) {
 				r.inner.style.transform = `translateY(${translateY}px)`;
 			}
@@ -990,23 +1023,17 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 							roller.className = 'osumc-digit-roller';
 							const inner = document.createElement('div');
 							inner.className = 'osumc-digit-roller-inner';
-
-							// create digits 0..9 repeated 3 times (so we have copies for smooth wrapping)
-							for (let rep = 0; rep < 3; rep++) {
-								for (let n = 0; n < 10; n++) {
-									const it = document.createElement('span');
-									it.className = 'osumc-digit-roller-item';
-									it.textContent = n;
-									inner.appendChild(it);
-								}
+							// create digits 0..9 stacked vertically
+							for (let n = 0; n < 10; n++) {
+								const it = document.createElement('span');
+								it.className = 'osumc-digit-roller-item';
+								it.textContent = n;
+								inner.appendChild(it);
 							}
-
 							roller.appendChild(inner);
 							win.appendChild(roller);
-
-							// measure height (fallback to 24)
-							const h = (inner.children[0] && inner.children[0].getBoundingClientRect().height) || 24;
-
+							// determine measured item height (fallback to 24)
+							const h = (inner.children[0].getBoundingClientRect().height) || 24;
 							// apply per-digit visual styles so roller items match original digits
 							const digitFontSize = (this._config && this._config.font_size) ? (this._config.font_size + 'px') : '26px';
 							const digitFontFamily = (this._config && this._config.font == 'Carlito') ? 'Carlito' : 'inherit';
@@ -1016,31 +1043,31 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 								const item = inner.children[k];
 								item.style.fontSize = digitFontSize;
 								item.style.fontFamily = digitFontFamily;
+								// ensure vertical centering and proper height
 								item.style.height = h + 'px';
 								item.style.lineHeight = h + 'px';
+								// if a digit color is configured, use the same gradient/text-clip technique
 								if (gradient) {
 									item.style.backgroundImage = gradient;
 									item.style.color = 'transparent';
 									item.style.webkitBackgroundClip = 'text';
 									item.style.backgroundClip = 'text';
 								} else {
+									// fallback: inherit color so the digit is visible
 									item.style.color = 'inherit';
 								}
 							}
 
-							// place initial position in the middle copy so we can move +/-10 safely
+							// set initial position so the correct digit is visible immediately
 							const currentDigit = parseInt(cntr_str.substring(lastD, lastD + 1)) || 0;
-							const initialIndex = currentDigit + 10; // middle copy
-							inner.style.transform = 'translateY(' + (-initialIndex * h) + 'px)';
-
-							// store references and initial logical position (in extended domain)
-							this._rollers[i] = { inner: inner, itemHeight: h, pos: initialIndex };
+							inner.style.transform = 'translateY(' + (-currentDigit * h) + 'px)';
+							// store references
+							this._rollers[i] = { inner: inner, itemHeight: h };
 						} else if (win && win.querySelector('.osumc-digit-roller') && !this._rollers[i]) {
 							// existing roller in DOM but not stored in _rollers -> store references and initialize position
 							const inner = win.querySelector('.osumc-digit-roller-inner');
-
-							const h = (inner.children[0] && inner.children[0].getBoundingClientRect().height) || 24;
-
+							const h = (inner.children[0].getBoundingClientRect().height) || 24;
+							// try to apply styles to the existing items as well (in case they were created without styling)
 							const digitFontSize = (this._config && this._config.font_size) ? (this._config.font_size + 'px') : '26px';
 							const digitFontFamily = (this._config && this._config.font == 'Carlito') ? 'Carlito' : 'inherit';
 							const digitColorCfg = this._config['digit_color' + suffix];
@@ -1060,153 +1087,151 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 									item.style.color = 'inherit';
 								}
 							}
-
-							// initialize visible digit in the middle copy
+							// initialize visible digit immediately
 							const currentDigit = parseInt(cntr_str.substring(lastD, lastD + 1)) || 0;
-							const initialIndex = currentDigit + 10;
-							inner.style.transform = 'translateY(' + (-initialIndex * h) + 'px)';
-							this._rollers[i] = { inner: inner, itemHeight: h, pos: initialIndex };
-						} else {
-							// no digit windows -> remove possible roller
-							this._rollers[i] = null;
+							inner.style.transform = 'translateY(' + (-currentDigit * h) + 'px)';
+							this._rollers[i] = { inner: inner, itemHeight: h };
 						}
-
-						if (this._config['decimal_separator_color' + suffix] != undefined && this._config['decimal_separator_color' + suffix] != '') {
-							this._elements.dp[i].style.color = this._config['decimal_separator_color' + suffix];
-						}
-
-						if (this._config['icon_color' + suffix] != undefined && this._config['icon_color' + suffix] != '') {
-							this._elements.icon[i].style.color = this._config['icon_color' + suffix];
-						}
-
-						if (this._config['icon_background_color' + suffix] != undefined && this._config['icon_background_color' + suffix] != '') {
-							this._elements.icon_div[i].style.backgroundColor = this._config['icon_background_color' + suffix];
-						}
-
-						if (this._config['decimal_separator_color' + suffix] != undefined && this._config['decimal_separator_color' + suffix] != '') {
-							this._elements.dp[i].style.color = this._config['decimal_separator_color' + suffix];
-						}
-
-						if (this._config['markings' + suffix]) {
-							this._elements.markings[i].style.display = "block";
-						} else {
-							this._elements.markings[i].style.display = "none";
-						}
-
-						if (this._config['markings_color' + suffix] != undefined && this._config['markings_color' + suffix] != '') {
-							this._elements.markings[i].style.color = this._config['markings_color' + suffix];
-						}
-
-
-
-						//set scale
-						if (this._config['scale' + suffix] == 100 || this._config['scale' + suffix] == '' || this._config['scale' + suffix] == undefined || !isNumeric(this._config['scale' + suffix])) {
-							this._elements.counter_div[i].style.transform = "scale(100%)";
-						} else {
-							this._elements.counter_div[i].style.transform = "scale(" + this._config['scale' + suffix] + "%)";
-						}
-					}
-				}
-
-
-
-				if (this._config.show_wheel) {
-					//show the main <div> element with wheel
-					this._elements.wheel_window.style.display = "block";
-
-					var reverse_dir = false;
-
-					//set custom wheel color
-					if (this._config.wheel_color != undefined && this._config.wheel_color != '') {
-						this._elements.wheel.style.backgroundImage = "linear-gradient(to right, #111 -5%, " + this._config.wheel_color + " 50%, #111 105%)";
-					}
-
-					//set custom marker color
-					if (this._config.wheel_marker_color != undefined && this._config.wheel_marker_color != '') {
-						this._elements.wheel_marker.style.backgroundColor = this._config.wheel_marker_color;
-					}
-
-					//set custom marker width
-					var r = document.querySelector(':root');
-					if (this._config.marker_width != undefined && this._config.marker_width != '') {
-						this._elements.wheel_marker.style.width = this._config.marker_width + "px";
-						//also set the variable used for calculation in animation
-						r.style.setProperty('--marker-width', this._config.marker_width + "px");
 					} else {
-						r.style.setProperty('--marker-width', "80px");	//default value
+						// no digit windows -> remove possible roller
+						this._rollers[i] = null;
 					}
 
-
-					if (this._config.speed_control_mode == 'Fixed') {
-						if (!isNaN(Number(this._config.wheel_speed))) {
-							var wheel_speed = this._config.wheel_speed;
-							if (wheel_speed < 0) {
-								reverse_dir = true;
-								wheel_speed = Math.abs(wheel_speed);
-							}
-							this._elements.wheel_marker.style.animationDuration = wheel_speed + "s";
-						} else {
-							this._elements.wheel_marker.style.removeProperty('animation-duration');
-						}
-					} else {	//dynamic speed based on value of selected custom Power entity
-						if (this._config.power_entity && typeof this._config.power_entity === "string") {
-							var power_val = parseFloat(this._hass.states[this._config.power_entity].state);
-
-							if (this._config.speed_control_mode == 'Power') {
-								//formula to calculate animation time (rotation speed) of the wheel
-								//from current state of Power entity and defined constants
-								// (max_rot_time + min_rot_time * power_val / max_power) - (max_rot_time * power_val / max_power)
-								var min_rot_time = this._config.min_rot_time;
-								var max_rot_time = this._config.max_rot_time;
-								var max_power = this._config.max_power_value;
-								if (power_val == 0 || !isNumeric(power_val) || !isNumeric(min_rot_time) || !isNumeric(max_rot_time) || !isNumeric(max_power)) {
-									this._elements.wheel_marker.style.animationDuration = 0 + "s";
-								} else {
-									if (power_val > max_power) {
-										power_val = max_power;
-									}
-									var calc_wheel_speed = (max_rot_time + min_rot_time * power_val / max_power) - (max_rot_time * power_val / max_power);
-									this._elements.wheel_marker.style.animationDuration = calc_wheel_speed + "s";
-								}
-							} else {
-								if (power_val == 0 || !isNumeric(power_val)) {
-									this._elements.wheel_marker.style.animationDuration = 0 + "s";
-								} else {
-									var rotationsPerKwh = this._config.rot_time_per_kwh;
-									var calc_wheel_speed = ((3600 / rotationsPerKwh) * 1000) / power_val;
-									this._elements.wheel_marker.style.animationDuration = calc_wheel_speed + "s";
-								}
-							}
-
-							//reverse the marker direction if the power value is negative
-							if (power_val < 0) {
-								reverse_dir = true;
-							}
-						} else {
-							this._elements.wheel_marker.style.removeProperty('animation-duration');
-						}
+					if (this._config['decimal_separator_color' + suffix] != undefined && this._config['decimal_separator_color' + suffix] != '') {
+						this._elements.dp[i].style.color = this._config['decimal_separator_color' + suffix];
 					}
 
-					//reverse the marker direction if the power value is negative
-					if (reverse_dir) {
-						this._elements.wheel_marker.style.animationName = 'osumc-wheel-animation-reverse';
+					if (this._config['icon_color' + suffix] != undefined && this._config['icon_color' + suffix] != '') {
+						this._elements.icon[i].style.color = this._config['icon_color' + suffix];
+					}
+
+					if (this._config['icon_background_color' + suffix] != undefined && this._config['icon_background_color' + suffix] != '') {
+						this._elements.icon_div[i].style.backgroundColor = this._config['icon_background_color' + suffix];
+					}
+
+					if (this._config['decimal_separator_color' + suffix] != undefined && this._config['decimal_separator_color' + suffix] != '') {
+						this._elements.dp[i].style.color = this._config['decimal_separator_color' + suffix];
+					}
+
+					if (this._config['markings' + suffix]) {
+						this._elements.markings[i].style.display = "block";
 					} else {
-						this._elements.wheel_marker.style.animationName = 'osumc-wheel-animation';
+						this._elements.markings[i].style.display = "none";
 					}
-				} else {
-					this._elements.wheel_marker.style.animationDuration = 0;
-					this._elements.wheel_window.style.display = "none";
-				}
 
-				// if there is at least one roller configured and power_entity exists, start animation
-				if (this._rollers.some(x => x)) {
-					this._startRollAnimation();
-				} else {
-					this._stopRollAnimation();
-				}
+					if (this._config['markings_color' + suffix] != undefined && this._config['markings_color' + suffix] != '') {
+						this._elements.markings[i].style.color = this._config['markings_color' + suffix];
+					}
 
-				this._elements.error.classList.add("osumc-error--hidden");
+
+
+					//set scale
+					if (this._config['scale' + suffix] == 100 || this._config['scale' + suffix] == '' || this._config['scale' + suffix] == undefined || !isNumeric(this._config['scale' + suffix])) {
+						this._elements.counter_div[i].style.transform = "scale(100%)";
+					} else {
+						this._elements.counter_div[i].style.transform = "scale(" + this._config['scale' + suffix] + "%)";
+					}
+				}
 			}
+
+
+
+			if (this._config.show_wheel) {
+				//show the main <div> element with wheel
+				this._elements.wheel_window.style.display = "block";
+
+				var reverse_dir = false;
+
+				//set custom wheel color
+				if (this._config.wheel_color != undefined && this._config.wheel_color != '') {
+					this._elements.wheel.style.backgroundImage = "linear-gradient(to right, #111 -5%, " + this._config.wheel_color + " 50%, #111 105%)";
+				}
+
+				//set custom marker color
+				if (this._config.wheel_marker_color != undefined && this._config.wheel_marker_color != '') {
+					this._elements.wheel_marker.style.backgroundColor = this._config.wheel_marker_color;
+				}
+
+				//set custom marker width
+				var r = document.querySelector(':root');
+				if (this._config.marker_width != undefined && this._config.marker_width != '') {
+					this._elements.wheel_marker.style.width = this._config.marker_width + "px";
+					//also set the variable used for calculation in animation
+					r.style.setProperty('--marker-width', this._config.marker_width + "px");
+				} else {
+					r.style.setProperty('--marker-width', "80px");	//default value
+				}
+
+
+				if (this._config.speed_control_mode == 'Fixed') {
+					if (!isNaN(Number(this._config.wheel_speed))) {
+						var wheel_speed = this._config.wheel_speed;
+						if (wheel_speed < 0) {
+							reverse_dir = true;
+							wheel_speed = Math.abs(wheel_speed);
+						}
+						this._elements.wheel_marker.style.animationDuration = wheel_speed + "s";
+					} else {
+						this._elements.wheel_marker.style.removeProperty('animation-duration');
+					}
+				} else {	//dynamic speed based on value of selected custom Power entity
+					if (this._config.power_entity && typeof this._config.power_entity === "string") {
+						var power_val = parseFloat(this._hass.states[this._config.power_entity].state);
+
+						if (this._config.speed_control_mode == 'Power') {
+							//formula to calculate animation time (rotation speed) of the wheel
+							//from current state of Power entity and defined constants
+							// (max_rot_time + min_rot_time * power_val / max_power) - (max_rot_time * power_val / max_power)
+							var min_rot_time = this._config.min_rot_time;
+							var max_rot_time = this._config.max_rot_time;
+							var max_power = this._config.max_power_value;
+							if (power_val == 0 || !isNumeric(power_val) || !isNumeric(min_rot_time) || !isNumeric(max_rot_time) || !isNumeric(max_power)) {
+								this._elements.wheel_marker.style.animationDuration = 0 + "s";
+							} else {
+								if (power_val > max_power) {
+									power_val = max_power;
+								}
+								var calc_wheel_speed = (max_rot_time + min_rot_time * power_val / max_power) - (max_rot_time * power_val / max_power);
+								this._elements.wheel_marker.style.animationDuration = calc_wheel_speed + "s";
+							}
+						} else {
+							if (power_val == 0 || !isNumeric(power_val)) {
+								this._elements.wheel_marker.style.animationDuration = 0 + "s";
+							} else {
+								var rotationsPerKwh = this._config.rot_time_per_kwh;
+								var calc_wheel_speed = ((3600 / rotationsPerKwh) * 1000) / power_val;
+								this._elements.wheel_marker.style.animationDuration = calc_wheel_speed + "s";
+							}
+						}
+
+						//reverse the marker direction if the power value is negative
+						if (power_val < 0) {
+							reverse_dir = true;
+						}
+					} else {
+						this._elements.wheel_marker.style.removeProperty('animation-duration');
+					}
+				}
+
+				//reverse the marker direction if the power value is negative
+				if (reverse_dir) {
+					this._elements.wheel_marker.style.animationName = 'osumc-wheel-animation-reverse';
+				} else {
+					this._elements.wheel_marker.style.animationName = 'osumc-wheel-animation';
+				}
+			} else {
+				this._elements.wheel_marker.style.animationDuration = 0;
+				this._elements.wheel_window.style.display = "none";
+			}
+
+			// if there is at least one roller configured and power_entity exists, start animation
+			if (this._rollers.some(x => x)) {
+				this._startRollAnimation();
+			} else {
+				this._stopRollAnimation();
+			}
+
+			this._elements.error.classList.add("osumc-error--hidden");
 		}
 	}
 
