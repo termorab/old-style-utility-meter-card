@@ -982,94 +982,105 @@ _updateRollers() {
 					if (lastD >= 0) {
 						const idx = i * 15 + lastD;
 						const win = this._elements.digit_window[idx];
-					// create roller if not present
-					if (win && !win.querySelector('.osumc-digit-roller')) {
-					  // remove plain .osumc-digit-text and build roller structure
-					  win.innerHTML = ''; // remove plain .osumc-digit-text
-					  const roller = document.createElement('div');
-					  roller.className = 'osumc-digit-roller';
-					  const inner = document.createElement('div');
-					  inner.className = 'osumc-digit-roller-inner';
-					
-					  // create digits 0..9 repeated 3 times (so we have copies for smooth wrapping)
-					  for (let rep = 0; rep < 3; rep++) {
-					    for (let n = 0; n < 10; n++) {
-					      const it = document.createElement('span');
-					      it.className = 'osumc-digit-roller-item';
-					      it.textContent = n;
-					      inner.appendChild(it);
-					    }
-					  }
-					
-					  roller.appendChild(inner);
-					  win.appendChild(roller);
-					
-					  // measure height (fallback to 24)
-					  const h = (inner.children[0] && inner.children[0].getBoundingClientRect().height) || 24;
-					
-					  // apply per-digit visual styles so roller items match original digits
-					  const digitFontSize = (this._config && this._config.font_size) ? (this._config.font_size + 'px') : '26px';
-					  const digitFontFamily = (this._config && this._config.font == 'Carlito') ? 'Carlito' : 'inherit';
-					  const digitColorCfg = this._config['digit_color' + suffix];
-					  const gradient = digitColorCfg ? ('linear-gradient(rgba(64,64,64,1), ' + digitColorCfg + ', rgba(64,64,64,1))') : null;
-					  for (let k = 0; k < inner.children.length; k++) {
-					    const item = inner.children[k];
-					    item.style.fontSize = digitFontSize;
-					    item.style.fontFamily = digitFontFamily;
-					    item.style.height = h + 'px';
-					    item.style.lineHeight = h + 'px';
-					    if (gradient) {
-					      item.style.backgroundImage = gradient;
-					      item.style.color = 'transparent';
-					      item.style.webkitBackgroundClip = 'text';
-					      item.style.backgroundClip = 'text';
-					    } else {
-					      item.style.color = 'inherit';
-					    }
-					  }
-					
-					  // place initial position in the middle copy so we can move +/-10 safely
-					  const currentDigit = parseInt(cntr_str.substring(lastD, lastD + 1)) || 0;
-					  const initialIndex = currentDigit + 10; // middle copy
-					  inner.style.transform = 'translateY(' + (-initialIndex * h) + 'px)';
-					
-					  // store references and initial logical position (in extended domain)
-					  this._rollers[i] = { inner: inner, itemHeight: h, pos: initialIndex };
-					} else if (win && win.querySelector('.osumc-digit-roller') && !this._rollers[i]) {
-					  // existing roller in DOM but not stored in _rollers -> store references and initialize position
-					  const inner = win.querySelector('.osumc-digit-roller-inner');
-					
-					  const h = (inner.children[0] && inner.children[0].getBoundingClientRect().height) || 24;
-					
-					  const digitFontSize = (this._config && this._config.font_size) ? (this._config.font_size + 'px') : '26px';
-					  const digitFontFamily = (this._config && this._config.font == 'Carlito') ? 'Carlito' : 'inherit';
-					  const digitColorCfg = this._config['digit_color' + suffix];
-					  const gradient = digitColorCfg ? ('linear-gradient(rgba(64,64,64,1), ' + digitColorCfg + ', rgba(64,64,64,1))') : null;
-					  for (let k = 0; k < inner.children.length; k++) {
-					    const item = inner.children[k];
-					    item.style.fontSize = digitFontSize;
-					    item.style.fontFamily = digitFontFamily;
-					    item.style.height = h + 'px';
-					    item.style.lineHeight = h + 'px';
-					    if (gradient) {
-					      item.style.backgroundImage = gradient;
-					      item.style.color = 'transparent';
-					      item.style.webkitBackgroundClip = 'text';
-					      item.style.backgroundClip = 'text';
-					    } else {
-					      item.style.color = 'inherit';
-					    }
-					  }
-					
-					  // initialize visible digit in the middle copy
-					  const currentDigit = parseInt(cntr_str.substring(lastD, lastD + 1)) || 0;
-					  const initialIndex = currentDigit + 10;
-					  inner.style.transform = 'translateY(' + (-initialIndex * h) + 'px)';
-					  this._rollers[i] = { inner: inner, itemHeight: h, pos: initialIndex };
-					} else {
-						// no digit windows -> remove possible roller
-						this._rollers[i] = null;
-					}
+						// create roller if not present
+						if (win && !win.querySelector('.osumc-digit-roller')) {
+						  // Attempt to reuse existing static digit node as the middle copy
+						  const staticDigit = win.querySelector('.osumc-digit-text'); // may be null if not present
+						  // compute the current least-significant digit
+						  const currentDigit = parseInt(cntr_str.substring(lastD, lastD + 1)) || 0;
+
+						  // build roller structure
+						  const roller = document.createElement('div');
+						  roller.className = 'osumc-digit-roller';
+						  const inner = document.createElement('div');
+						  inner.className = 'osumc-digit-roller-inner';
+
+						  // create digits 0..9 repeated 3 times (so we have copies for smooth wrapping),
+						  // reusing the existing staticDigit for the middle copy when available.
+						  for (let rep = 0; rep < 3; rep++) {
+						    for (let n = 0; n < 10; n++) {
+						      if (rep === 1 && n === currentDigit && staticDigit) {
+						        // reuse the existing node as the middle copy's item
+						        staticDigit.classList.add('osumc-digit-roller-item');
+						        // ensure it's styled later along with the other items; move it into inner
+						        inner.appendChild(staticDigit);
+						      } else {
+						        const it = document.createElement('span');
+						        it.className = 'osumc-digit-roller-item';
+						        it.textContent = n;
+						        inner.appendChild(it);
+						      }
+						    }
+						  }
+
+						  roller.appendChild(inner);
+						  win.appendChild(roller);
+
+						  // measure height (fallback to 24)
+						  const h = (inner.children[0] && inner.children[0].getBoundingClientRect().height) || 24;
+
+						  // apply per-digit visual styles so roller items match original digits
+						  const digitFontSize = (this._config && this._config.font_size) ? (this._config.font_size + 'px') : '26px';
+						  const digitFontFamily = (this._config && this._config.font == 'Carlito') ? 'Carlito' : 'inherit';
+						  const digitColorCfg = this._config['digit_color' + suffix];
+						  const gradient = digitColorCfg ? ('linear-gradient(rgba(64,64,64,1), ' + digitColorCfg + ', rgba(64,64,64,1))') : null;
+						  for (let k = 0; k < inner.children.length; k++) {
+						    const item = inner.children[k];
+						    item.style.fontSize = digitFontSize;
+						    item.style.fontFamily = digitFontFamily;
+						    item.style.height = h + 'px';
+						    item.style.lineHeight = h + 'px';
+						    if (gradient) {
+						      item.style.backgroundImage = gradient;
+						      item.style.color = 'transparent';
+						      item.style.webkitBackgroundClip = 'text';
+						      item.style.backgroundClip = 'text';
+						    } else {
+						      item.style.color = 'inherit';
+						    }
+						  }
+
+						  // place initial position in the middle copy so we can move +/-10 safely
+						  const initialIndex = currentDigit + 10; // middle copy
+						  inner.style.transform = 'translateY(' + (-initialIndex * h) + 'px)';
+
+						  // store references and initial logical position (in extended domain)
+						  this._rollers[i] = { inner: inner, itemHeight: h, pos: initialIndex };
+						} else if (win && win.querySelector('.osumc-digit-roller') && !this._rollers[i]) {
+						  // existing roller in DOM but not stored in _rollers -> store references and initialize position
+						  const inner = win.querySelector('.osumc-digit-roller-inner');
+
+						  const h = (inner.children[0] && inner.children[0].getBoundingClientRect().height) || 24;
+
+						  const digitFontSize = (this._config && this._config.font_size) ? (this._config.font_size + 'px') : '26px';
+						  const digitFontFamily = (this._config && this._config.font == 'Carlito') ? 'Carlito' : 'inherit';
+						  const digitColorCfg = this._config['digit_color' + suffix];
+						  const gradient = digitColorCfg ? ('linear-gradient(rgba(64,64,64,1), ' + digitColorCfg + ', rgba(64,64,64,1))') : null;
+						  for (let k = 0; k < inner.children.length; k++) {
+						    const item = inner.children[k];
+						    item.style.fontSize = digitFontSize;
+						    item.style.fontFamily = digitFontFamily;
+						    item.style.height = h + 'px';
+						    item.style.lineHeight = h + 'px';
+						    if (gradient) {
+						      item.style.backgroundImage = gradient;
+						      item.style.color = 'transparent';
+						      item.style.webkitBackgroundClip = 'text';
+						      item.style.backgroundClip = 'text';
+						    } else {
+						      item.style.color = 'inherit';
+						    }
+						  }
+
+						  // initialize visible digit in the middle copy
+						  const currentDigit = parseInt(cntr_str.substring(lastD, lastD + 1)) || 0;
+						  const initialIndex = currentDigit + 10;
+						  inner.style.transform = 'translateY(' + (-initialIndex * h) + 'px)';
+						  this._rollers[i] = { inner: inner, itemHeight: h, pos: initialIndex };
+						} else {
+							// no digit windows -> remove possible roller
+							this._rollers[i] = null;
+						}
 
 					if (this._config['decimal_separator_color' + suffix] != undefined && this._config['decimal_separator_color' + suffix] != '') {
 						this._elements.dp[i].style.color = this._config['decimal_separator_color' + suffix];
@@ -1332,7 +1343,7 @@ _updateRollers() {
 					case "show_wheel":
 						return "Shows a rotating wheel with marker, like on real electricity meter";
 					case "speed_control_mode":
-						return "Fixed - the wheel rotates with constant speed defined below. Power - the speed depends on sensor value of a defined entity, can be Power, Current, Flow... Realistic - Emulates real utility meters";
+						return "Fixed - the wheel rotates with constant speed defined below. Power - the speed depends on sensor value of a defined entity, can be Power, Current, Flow... Realistic - Emulates real utili[...]
 					case "wheel_speed":
 						return "Speed of the wheel. Number of seconds per single rotation (-20 to 20, 0 = STOP, 0.1 - fastest, 20 - slowest, negative values = reverse direction)";
 					case "power_entity":
@@ -1344,7 +1355,7 @@ _updateRollers() {
 					case "max_power_value":
 						return "Maximum expected value of the above entity, at which the wheel will rotate at max speed. See Readme for deeper explanation.";
 					case "scale":
-						return "Set the scale of the counter (default = 100%). In case you have too many digits that you want to display and the counter doesn't fit into card. Or if you want to make the counter bigger.";
+						return "Set the scale of the counter (default = 100%). In case you have too many digits that you want to display and the counter doesn't fit into card. Or if you want to make the counter bigger.[...]
 					case "rot_time_per_kwh":
 						return "Set the amount of rotations the wheel should complete per used kwh. Default value is 75. If your Power Entity returns kW instead of W, enter the value multiplied by 1000 (75.000).";
 				}
