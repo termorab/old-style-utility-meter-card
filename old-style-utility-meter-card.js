@@ -622,96 +622,97 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 	}
 	
 	_updateRollers() {
-  // Update roller for each configured counter that has a roller object
-  for (let i = 0; i < MAX_COUNTERS; i++) {
-    const r = this._rollers[i];
-    if (!r) continue;
-    const suffix = (i > 0) ? '_' + (i + 1) : '';
-    const entityId = this._config['entity' + suffix];
-    if (!entityId) continue;
-    // read base entity value and last update time
-    const stateObj = this._hass.states[entityId];
-    if (!stateObj) continue;
-    const baseVal = parseFloat(stateObj.state) || 0;
-    const lastUpdated = new Date(stateObj.last_updated).getTime() / 1000;
-    // read power if configured
-    let powerVal = 0;
-    if (this._config.power_entity && this._hass.states[this._config.power_entity]) {
-      powerVal = parseFloat(this._hass.states[this._config.power_entity].state) || 0;
-      // adjust if power_entity unit is kW -> convert to W
-      const pUnit = (this._hass.states[this._config.power_entity].attributes || {}).unit_of_measurement || '';
-      if (String(pUnit).toLowerCase().includes('kw')) {
-        powerVal = powerVal * 1000; // now in W
-      }
+	  // Update roller for each configured counter that has a roller object
+	  for (let i = 0; i < MAX_COUNTERS; i++) {
+	    const r = this._rollers[i];
+	    if (!r) continue;
+	    const suffix = (i > 0) ? '_' + (i + 1) : '';
+	    const entityId = this._config['entity' + suffix];
+	    if (!entityId) continue;
+	    const stateObj = this._hass.states[entityId];
+	    if (!stateObj) continue;
+	
+	    const baseVal = parseFloat(stateObj.state) || 0;
+	    const lastUpdated = new Date(stateObj.last_updated).getTime() / 1000;
+	
+	    let powerVal = 0;
+	    if (this._config.power_entity && this._hass.states[this._config.power_entity]) {
+	      powerVal = parseFloat(this._hass.states[this._config.power_entity].state) || 0;
+	      const pUnit = (this._hass.states[this._config.power_entity].attributes || {}).unit_of_measurement || '';
+	      if (String(pUnit).toLowerCase().includes('kw')) {
+	        powerVal = powerVal * 1000;
+	      }
+	    }
+	
+	    const nowS = Date.now() / 1000;
+	    const deltaS = Math.max(0, nowS - lastUpdated);
+	    const estVal = baseVal + (powerVal * deltaS) / 3600000; // W * s -> kWh
+	    const digits_right = Number(this._config['decimal_digit_number' + suffix] || 0);
+	    const factor = Math.pow(10, digits_right);
+	    const scaled = estVal * factor; // signed scaled value
+	
+	    // digit selection is based on magnitude of the value
+	    const absScaled = Math.abs(scaled);
+	    const intPartAbs = Math.floor(absScaled);
+	    const digitIndex = intPartAbs % 10;
+	    const frac = absScaled - intPartAbs;
+	
+	    const posBase = digitIndex + frac; // nominal 0..10 range for the visible digit
+	    const direction = (powerVal >= 0) ? 1 : -1;
+	    const itemH = r.itemHeight || 24;
+	
+	    // recover previous logical position if available; try r.pos, else parse from current transform
+	    let prevPos = (r.pos !== undefined) ? r.pos : null;
+	    if (prevPos === null) {
+	      const tf = (r.inner && r.inner.style && r.inner.style.transform) ? r.inner.style.transform : '';
+	      const m = tf.match(/translateY\((-?[\d.]+)px\)/);
+	      if (m) {
+	        const curY = parseFloat(m[1]);
+	        if (!isNaN(curY) && itemH !== 0) {
+	          prevPos = -curY / itemH;
+	        }
+	      }
+	    }
+	    if (prevPos === null) {
+	      // fallback initialization: if direction is positive, use posBase; if negative, choose posBase-10
+	      prevPos = (direction >= 0) ? posBase : (posBase - 10);
+	    }
+	
+	    // consider wrapped candidates around posBase so motion is continuous across digit wrap
+	    const candidates = [posBase - 10, posBase, posBase + 10];
+	
+	    // prefer candidate that moves in the intended direction and has smallest absolute delta
+	    let chosen = candidates[0];
+	    let bestScore = Infinity;
+	    let foundSameDir = false;
+	    for (let c = 0; c < candidates.length; c++) {
+	      const cand = candidates[c];
+	      const delta = cand - prevPos;
+	      const absDelta = Math.abs(delta);
+	      const sameDir = (delta === 0) || (direction > 0 ? delta > 0 : delta < 0);
+	      if (sameDir) {
+	        if (!foundSameDir || absDelta < bestScore) {
+	          foundSameDir = true;
+	          bestScore = absDelta;
+	          chosen = cand;
+	        }
+	      } else if (!foundSameDir) {
+	        if (absDelta < bestScore) {
+	          bestScore = absDelta;
+	          chosen = cand;
+	        }
+	      }
+	    }
+
+    // store chosen logical position for continuity
+    r.pos = chosen;
+
+    // apply transform (negative because digits are stacked top->bottom)
+    const translateY = -chosen * itemH;
+    // guard against invalid numbers
+    if (!isNaN(translateY) && r.inner) {
+      r.inner.style.transform = `translateY(${translateY}px)`;
     }
-    // estimate current value from last update using power (power in W)
-    const nowS = Date.now() / 1000;
-    const deltaS = Math.max(0, nowS - lastUpdated);
-    const estVal = baseVal + (powerVal * deltaS) / 3600000; // converts W * s -> kWh
-    // compute scaling depending on decimal digits used for that counter
-    const digits_right = Number(this._config['decimal_digit_number' + suffix] || 0);
-    const factor = Math.pow(10, digits_right);
-    const scaled = estVal * factor; // scaled value (signed)
-    // compute digit index and fractional amount using absolute value for digit selection,
-    // but keep the sign / direction separate so we can animate correctly.
-    const absScaled = Math.abs(scaled);
-    const intPartAbs = Math.floor(absScaled);           // integer part of absolute value
-    const digitIndex = intPartAbs % 10;                // 0..9
-    const frac = absScaled - intPartAbs;               // fractional part 0..1
-
-    // direction: positive power => roll up (increasing), negative => roll down (decreasing)
-    const direction = (powerVal >= 0) ? 1 : -1;
-
-    // each roller item height
-    const itemH = r.itemHeight || 24;
-
-    // base target position (0..9+) for the digit wheel (0..9 stacked top->bottom)
-    const posBase = digitIndex + frac; // natural position
-
-    // We want to pick a wrapped candidate (posBase, posBase-10, posBase+10, ...) that continues
-    // smoothly in the chosen direction relative to the previous position.
-    const candidates = [posBase, posBase - 10, posBase + 10];
-
-    // previous logical position for this roller (may be undefined on first frame)
-    const prevPos = (r.pos !== undefined) ? r.pos : null;
-
-    let chosenPos = null;
-    if (prevPos === null) {
-      // no history: pick the base position for positive direction,
-      // or the base-10 for negative so animation will proceed "downwards" visually
-      chosenPos = (direction >= 0) ? posBase : (posBase - 10);
-    } else {
-      // prefer candidates that move in the correct direction relative to prevPos
-      // compute candidate deltas
-      let best = null;
-      for (let c = 0; c < candidates.length; c++) {
-        const cand = candidates[c];
-        const delta = cand - prevPos;
-        const sameDir = (delta === 0) || (direction > 0 ? delta > 0 : delta < 0);
-        const absDelta = Math.abs(delta);
-        if (sameDir) {
-          // if moving in correct direction, prefer the smallest absolute delta
-          if (best === null || (best.sameDir && absDelta < best.absDelta) || (!best.sameDir)) {
-            best = { cand, absDelta, sameDir: true };
-          }
-        } else {
-          // keep as fallback if no sameDir candidate found
-          if (best === null) {
-            best = { cand, absDelta, sameDir: false };
-          } else if (!best.sameDir && absDelta < best.absDelta) {
-            best = { cand, absDelta, sameDir: false };
-          }
-        }
-      }
-      chosenPos = best.cand;
-    }
-
-    // store chosen pos for next frame continuity
-    r.pos = chosenPos;
-
-    // set transform (negative translateY shows item index at top)
-    const translateY = -chosenPos * itemH;
-    r.inner.style.transform = `translateY(${translateY}px)`;
   }
 }
 	
