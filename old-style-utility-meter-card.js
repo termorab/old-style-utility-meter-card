@@ -55,7 +55,7 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 
 	setConfig(config) {
 		//this._config = config;
-		
+
 		this._config = {
 			tap_action: {
 				action: "more-info"
@@ -64,8 +64,8 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 				action: "more-info",
 			},
 			...config,
-			};
-		
+		};
+
 		if (!this._isAttached) {
 			this.doAttach();
 			this.doQueryElements();
@@ -75,7 +75,7 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 		this.doCheckConfig();
 		this.doUpdateConfig();
 	}
-	
+
 	set hass(hass) {
 		this._hass = hass;
 		this.doUpdateHass()
@@ -96,14 +96,14 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 		});
 		this.dispatchEvent(event);
 	}
-	
-	
+
+
 	onClicked1(target) {
 		/* target:
 		0 = power_entity
 		1, 2, 3... = counter entities
 		*/
-		
+
 		var entityId;
 
 		if (target == 0) {
@@ -113,11 +113,11 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 		} else {
 			entityId = this._config['entity_' + (target)];
 		}
-		
+
 		if (entityId === undefined || entityId === '') {
 			return;
-		}		
-		
+		}
+
 		const event = new Event("hass-more-info", {
 			bubbles: true,
 			composed: true,
@@ -127,11 +127,11 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 			entityId: entityId,
 			view: 'info',
 		};
-		
+
 		this.dispatchEvent(event);
 	}
 
-	
+
 	getHeader() {
 		return this._config.header;
 	}
@@ -175,7 +175,7 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 		if (!this._config.entity) {
 			throw new Error('Please define an entity!');
 		}
-		
+
 		if (!this._config.power_entity && (this._config.speed_control_mode == "Power" || this._config.speed_control_mode == "Realistic")) {
 			throw new Error('Please define the Power entity for wheel speed control mode!');
 		}
@@ -513,22 +513,22 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 				<p class="osumc-error osumc-error--hidden">
 				<br><br>
 				`;
-				
-				//create counters
-			for (var i = 0; i < MAX_COUNTERS; i++) {
-				html_content += `
+
+		//create counters
+		for (var i = 0; i < MAX_COUNTERS; i++) {
+			html_content += `
 				<div class="osumc-name" id="osumc-` + i + `"></div>
 				<div class="osumc-counter-div" id="osumc-` + i + `">
 					<div class="osumc-icon-div">
 						<ha-icon icon="mdi:flash" class="osumc-icon"></ha-icon>
 					</div><div class="osumc-integer-div">
 						`;
-				for (var d = 0; d < 15; d++) {
-					html_content += `<span class="osumc-digit-window">
+			for (var d = 0; d < 15; d++) {
+				html_content += `<span class="osumc-digit-window">
 							<span class="osumc-digit-text" id="osumc-digit-` + d + `">0</span>
 						</span>`;
-				}
-				html_content += `
+			}
+			html_content += `
 						<div class="osumc-decimal-point"></div>
 						<div class="osumc-line_cont">
 							<div class="osumc-line"></div>
@@ -544,9 +544,9 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 					</div><div class="osumc-red-bg"></div><div class="osumc-grey-bg"></div>
 				</div>
 				`;
-			}
-			
-			html_content += `				
+		}
+
+		html_content += `				
 				<div class="osumc-wheel-window">
 					<div class="osumc-wheel-window-left">
 						<div class="osumc-wheel-window-left-border"></div>
@@ -561,7 +561,7 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 				<div id="osumc-last-update"></div>
 			</div>
 		`;
-		
+
 		this._elements.card.innerHTML = html_content;
 	}
 
@@ -574,7 +574,7 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 		this._elements.error = card.querySelector(".osumc-error")
 
 		this._elements.card_content = card.querySelector(".card-content")
-	
+
 		this._elements.name = card.querySelectorAll(".osumc-name");
 		this._elements.counter_div = card.querySelectorAll(".osumc-counter-div");
 		this._elements.integer_div = card.querySelectorAll(".osumc-integer-div");
@@ -585,10 +585,10 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 		this._elements.icon_div = card.querySelectorAll(".osumc-icon-div");
 		this._elements.icon = card.querySelectorAll(".osumc-icon");
 		this._elements.markings = card.querySelectorAll(".osumc-line_cont");
-		
+
 		this._elements.digit_window = card.querySelectorAll(".osumc-digit-window");
 		this._elements.digit = card.querySelectorAll(".osumc-digit-text");
-		
+
 
 		this._elements.wheel_window = card.querySelector(".osumc-wheel-window");
 		this._elements.wheel = card.querySelector(".osumc-wheel");
@@ -600,158 +600,146 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 	doListen() {
 		//this._elements.card_content.addEventListener("click", this.onClicked.bind(this), false);
 		for (var d = 0; d < MAX_COUNTERS; d++) {
-			this._elements.counter_div[d].addEventListener("click", this.onClicked1.bind(this, d+1), false);
+			this._elements.counter_div[d].addEventListener("click", this.onClicked1.bind(this, d + 1), false);
 		}
 		this._elements.wheel_window.addEventListener("click", this.onClicked1.bind(this, 0), false);
 	}
 
 	_startRollAnimation() {
-	  if (this._rollerRaf) return;
-	  const loop = (ts) => {
-		this._updateRollers();
+		if (this._rollerRaf) return;
+		const loop = (ts) => {
+			this._updateRollers();
+			this._rollerRaf = requestAnimationFrame(loop);
+		};
 		this._rollerRaf = requestAnimationFrame(loop);
-	  };
-	  this._rollerRaf = requestAnimationFrame(loop);
 	}
-	
+
 	_stopRollAnimation() {
-	  if (this._rollerRaf) {
-		cancelAnimationFrame(this._rollerRaf);
-		this._rollerRaf = null;
-	  }
+		if (this._rollerRaf) {
+			cancelAnimationFrame(this._rollerRaf);
+			this._rollerRaf = null;
+		}
 	}
-	
-_updateRollers() {
-  // Update roller for each configured counter that has a roller object
-  for (let i = 0; i < MAX_COUNTERS; i++) {
-    const r = this._rollers[i];
-    if (!r) continue;
-    const suffix = (i > 0) ? '_' + (i + 1) : '';
-    const entityId = this._config['entity' + suffix];
-    if (!entityId) continue;
-    // read base entity value and last update time
-    const stateObj = this._hass.states[entityId];
-    if (!stateObj) continue;
-    const baseVal = parseFloat(stateObj.state) || 0;
-    const lastUpdated = new Date(stateObj.last_updated).getTime() / 1000;
-    // read power if configured
-    let powerVal = 0;
-    if (this._config.power_entity && this._hass.states[this._config.power_entity]) {
-      powerVal = parseFloat(this._hass.states[this._config.power_entity].state) || 0;
-      // adjust if power_entity unit is kW -> convert to W
-      const pUnit = (this._hass.states[this._config.power_entity].attributes || {}).unit_of_measurement || '';
-      if (String(pUnit).toLowerCase().includes('kw')) {
-        powerVal = powerVal * 1000; // now in W
-      }
-    }
-    // estimate current value from last update using power (power in W)
-    const nowS = Date.now() / 1000;
-    const deltaS = Math.max(0, nowS - lastUpdated);
-    const estVal = baseVal + (powerVal * deltaS) / 3600000; // converts W * s -> kWh
-    // compute scaling depending on decimal digits used for that counter
-    const digits_right = Number(this._config['decimal_digit_number' + suffix] || 0);
-    const factor = Math.pow(10, digits_right);
-    const scaled = estVal * factor; // scaled value (signed)
 
-    // compute digit index and fractional amount using magnitude
-    const absScaled = Math.abs(scaled);
-    const intPartAbs = Math.floor(absScaled);
-    const digitIndex = intPartAbs % 10;                // 0..9
-    const frac = absScaled - intPartAbs;               // fractional part 0..1
+	_updateRollers() {
+		// Update roller for each configured counter that has a roller object
+		for (let i = 0; i < MAX_COUNTERS; i++) {
+			const r = this._rollers[i];
+			if (!r) continue;
+			const suffix = (i > 0) ? '_' + (i + 1) : '';
+			const entityId = this._config['entity' + suffix];
+			if (!entityId) continue;
+			// read base entity value and last update time
+			const stateObj = this._hass.states[entityId];
+			if (!stateObj) continue;
+			const baseVal = parseFloat(stateObj.state) || 0;
+			const lastUpdated = new Date(stateObj.last_updated).getTime() / 1000;
+			// read power if configured
+			let powerVal = 0;
+			if (this._config.power_entity && this._hass.states[this._config.power_entity]) {
+				powerVal = parseFloat(this._hass.states[this._config.power_entity].state) || 0;
+				// adjust if power_entity unit is kW -> convert to W
+				const pUnit = (this._hass.states[this._config.power_entity].attributes || {}).unit_of_measurement || '';
+				if (String(pUnit).toLowerCase().includes('kw')) {
+					powerVal = powerVal * 1000; // now in W
+				}
+			}
+			// estimate current value from last update using power (power in W)
+			const nowS = Date.now() / 1000;
+			const deltaS = Math.max(0, nowS - lastUpdated);
+			const estVal = baseVal + (powerVal * deltaS) / 3600000; // converts W * s -> kWh
+			// compute scaling depending on decimal digits used for that counter
+			const digits_right = Number(this._config['decimal_digit_number' + suffix] || 0);
+			const factor = Math.pow(10, digits_right);
+			const scaled = estVal * factor; // scaled value (signed)
 
-    // direction: positive power => roll up (increasing), negative => roll down (decreasing)
-    const direction = (powerVal >= 0) ? 1 : -1;
+			// compute digit index and fractional amount using magnitude
+			const absScaled = Math.abs(scaled);
+			const intPartAbs = Math.floor(absScaled);
+			const digitIndex = intPartAbs % 10;                // 0..9
+			const frac = absScaled - intPartAbs;               // fractional part 0..1
 
-    // each roller item height
-    const itemH = r.itemHeight || 24;
+			// direction: positive power => roll up (increasing), negative => roll down (decreasing)
+			const direction = (powerVal >= 0) ? 1 : -1;
 
-    // base target position for the digit wheel (0..10)
-    const posBase = digitIndex + frac;
+			// each roller item height
+			const itemH = r.itemHeight || 24;
 
-    // inner count (we expect 3 copies -> 30 items, but read it dynamically)
-    const innerCount = (r.inner && r.inner.children) ? r.inner.children.length : 30;
+			// base target position for the digit wheel (0..10)
+			const posBase = digitIndex + frac;
 
-    // recover previous logical position if available (in extended domain)
-    let prevPos = (r.pos !== undefined) ? r.pos : null;
-    if (prevPos === null) {
-      const tf = (r.inner && r.inner.style && r.inner.style.transform) ? r.inner.style.transform : '';
-      const m = tf.match(/translateY\((-?[\d.]+)px\)/);
-      if (m) {
-        const curY = parseFloat(m[1]);
-        if (!isNaN(curY) && itemH !== 0) {
-          prevPos = -curY / itemH;
-        }
-      }
-    }
-    if (prevPos === null) {
-      // fallback init in middle copy (center around +10)
-      prevPos = posBase + 10;
-    }
+			// inner count (we expect 3 copies -> 30 items, but read it dynamically)
+			const innerCount = (r.inner && r.inner.children) ? r.inner.children.length : 30;
 
-    // build candidate positions (extended domain). Include a further +20 candidate so
-    // wrapping up from 9->0 can advance into the third copy smoothly.
-    const rawCandidates = [posBase - 10, posBase, posBase + 10, posBase + 20];
-    // filter candidates that actually map into existing indexes [0, innerCount-1]
-    const candidates = rawCandidates.filter(c => c >= 0 && c <= innerCount - 1);
+			// recover previous logical position if available (in extended domain)
+			let prevPos = (r.pos !== undefined) ? r.pos : null;
+			if (prevPos === null) {
+				const tf = (r.inner && r.inner.style && r.inner.style.transform) ? r.inner.style.transform : '';
+				const m = tf.match(/translateY\((-?[\d.]+)px\)/);
+				if (m) {
+					const curY = parseFloat(m[1]);
+					if (!isNaN(curY) && itemH !== 0) {
+						prevPos = -curY / itemH;
+					}
+				}
+			}
+			if (prevPos === null) {
+				// fallback init in middle copy (center around +10)
+				prevPos = posBase + 10;
+			}
 
-    // If no valid candidate after filtering (unlikely), just use posBase clamped into range
-    if (candidates.length === 0) {
-      let clamped = Math.max(0, Math.min(innerCount - 1, posBase + 10));
-      r.pos = clamped;
-      const translateY_fallback = -r.pos * itemH;
-      if (!isNaN(translateY_fallback) && r.inner) {
-        r.inner.style.transform = `translateY(${translateY_fallback}px)`;
-      }
-      continue;
-    }
+			// build candidate positions (extended domain). Include a further +20 candidate so
+			// wrapping up from 9->0 can advance into the third copy smoothly.
+			const rawCandidates = [posBase - 10, posBase, posBase + 10, posBase + 20];
+			// filter candidates that actually map into existing indexes [0, innerCount-1]
+			const candidates = rawCandidates.filter(c => c >= 0 && c <= innerCount - 1);
 
-    // pick candidate that continues motion in intended direction (smallest abs delta > 0 in that direction).
-    // If none move in that direction, pick the nearest candidate (smallest abs delta).
-    let chosen = candidates[0];
-    let bestScore = Infinity;
-    let foundSameDir = false;
-    for (let c = 0; c < candidates.length; c++) {
-      const cand = candidates[c];
-      const delta = cand - prevPos;
-      const absDelta = Math.abs(delta);
-      const sameDir = (delta === 0) || (direction > 0 ? delta > 0 : delta < 0);
-      if (sameDir) {
-        if (!foundSameDir || absDelta < bestScore) {
-          foundSameDir = true;
-          bestScore = absDelta;
-          chosen = cand;
-        }
-      } else if (!foundSameDir) {
-        if (absDelta < bestScore) {
-          bestScore = absDelta;
-          chosen = cand;
-        }
-      }
-    }
+			// If no valid candidate after filtering (unlikely), just use posBase clamped into range
+			if (candidates.length === 0) {
+				let clamped = Math.max(0, Math.min(innerCount - 1, posBase + 10));
+				r.pos = clamped;
+				const translateY_fallback = -r.pos * itemH;
+				if (!isNaN(translateY_fallback) && r.inner) {
+					r.inner.style.transform = `translateY(${translateY_fallback}px)`;
+				}
+				continue;
+			}
 
-    // store chosen logical position for continuity
-    r.pos = chosen;
+			// pick candidate that continues motion in intended direction (smallest abs delta > 0 in that direction).
+			// If none move in that direction, pick the nearest candidate (smallest abs delta).
+			let chosen = candidates[0];
+			let bestScore = Infinity;
+			let foundSameDir = false;
+			for (let c = 0; c < candidates.length; c++) {
+				const cand = candidates[c];
+				const delta = cand - prevPos;
+				const absDelta = Math.abs(delta);
+				const sameDir = (delta === 0) || (direction > 0 ? delta > 0 : delta < 0);
+				if (sameDir) {
+					if (!foundSameDir || absDelta < bestScore) {
+						foundSameDir = true;
+						bestScore = absDelta;
+						chosen = cand;
+					}
+				} else if (!foundSameDir) {
+					if (absDelta < bestScore) {
+						bestScore = absDelta;
+						chosen = cand;
+					}
+				}
+			}
 
-    // apply transform directly (inner has repeated copies so chosen index exists)
-    const translateY = -chosen * itemH;
-    if (!isNaN(translateY) && r.inner) {
-      r.inner.style.transform = `translateY(${translateY}px)`;
-    }
-  }
-}
+			// store chosen logical position for continuity
+			r.pos = chosen;
 
-    // store chosen logical position for continuity
-    r.pos = chosen;
+			// apply transform directly (inner has repeated copies so chosen index exists)
+			const translateY = -chosen * itemH;
+			if (!isNaN(translateY) && r.inner) {
+				r.inner.style.transform = `translateY(${translateY}px)`;
+			}
+		}
+	}
 
-    // apply transform (negative because digits are stacked top->bottom)
-    const translateY = -chosen * itemH;
-    // guard against invalid numbers
-    if (!isNaN(translateY) && r.inner) {
-      r.inner.style.transform = `translateY(${translateY}px)`;
-    }
-  }
-}
-	
 	doUpdateConfig() {
 		if (this.getHeader()) {
 			this._elements.card.setAttribute("header", this.getHeader());
@@ -772,7 +760,7 @@ _updateRollers() {
 			this._elements.error.classList.remove("osumc-error--hidden");
 		} else {
 			this._elements.error.textContent = "";
-			
+
 			//load / unload webfont
 			if (this._config.font == undefined) {
 				unloadCSS("osumc-webfont");
@@ -783,31 +771,31 @@ _updateRollers() {
 					unloadCSS("osumc-webfont");
 				}
 			}
-			
+
 			if (this._config.plate_color != undefined && this._config.plate_color != '') {
 				this._elements.card_content.style.backgroundColor = this._config.plate_color;
 			}
 
 			for (var i = 0; i < MAX_COUNTERS; i++) {
 				//var cntr_val = parseFloat(this.getState().state);
-				
+
 				var suffix = '';
 				if (i > 0) {
 					suffix = '_' + (i + 1);
 				}
-				
+
 				if (this._config['entity' + suffix] == undefined || this._config['entity' + suffix] == '') {
 					this._elements.counter_div[i].style.display = "none";
 					// ensure no roller is kept
 					this._rollers[i] = null;
 				} else {
-				
+
 					var cntr_val = parseFloat(this._hass.states[this._config['entity' + suffix]].state);
-					
+
 					if (isNumeric(this._config['offset' + suffix])) {
 						cntr_val += parseFloat(this._config['offset' + suffix]);
 					}
-					
+
 					var l_str;
 					var r_str;
 					if (String(cntr_val).indexOf(".") > 0) {
@@ -817,10 +805,10 @@ _updateRollers() {
 						l_str = String(cntr_val);
 						r_str = "0";
 					}
-					
+
 					var digits_left;
 					var digits_right;
-					
+
 					if (this._config['whole_digit_number' + suffix] === undefined || this._config['whole_digit_number' + suffix] === '') {
 						digits_left = 99;
 					} else {
@@ -831,10 +819,10 @@ _updateRollers() {
 					} else {
 						digits_right = this._config['decimal_digit_number' + suffix];
 					}
-					
+
 					if (digits_left == 99) {	//auto
 						digits_left = l_str.length;
-						if (digits_left > 10) {digits_left = 10;}
+						if (digits_left > 10) { digits_left = 10; }
 					}
 
 					if (digits_right == 99) {	//auto
@@ -844,25 +832,25 @@ _updateRollers() {
 							r_str = r_str.slice(0, 5);
 						}
 					}
-					
+
 					var total_digits = digits_left + digits_right;
-					
+
 					if (total_digits > 0) {
 						this._elements.integer_div[i].style.display = "inline-block";
 					} else {
 						this._elements.integer_div[i].style.display = "none";
 					}
-					
+
 					l_str = l_str.padStart(digits_left, '0');	//add leading zeros
 					l_str = l_str.slice(-digits_left);		// cut the beginning of the string if it's longer than required number of digits
 					if (digits_right > 0) {
 						r_str = r_str.padEnd(digits_right, '0');
 					}
-					
+
 					if (r_str.length > digits_right) {	//do rounding
-					  r_str = String(Math.round(parseInt(r_str) / Math.pow(10, r_str.length - digits_right)));
+						r_str = String(Math.round(parseInt(r_str) / Math.pow(10, r_str.length - digits_right)));
 					}
-					
+
 					var cntr_str = l_str + r_str;
 
 					var dig_val;
@@ -873,9 +861,9 @@ _updateRollers() {
 						random_pos = true;
 						this._elements.lu.innerHTML = ts;
 					}
-					
+
 					var markings_offset = 0;
-					
+
 					if (this._elements.digit) {
 						for (var d = 0; d < total_digits; d++) {
 							dig_val = cntr_str.substring(d, d + 1);
@@ -887,7 +875,7 @@ _updateRollers() {
 							if (this._config['random_shift' + suffix] === '' || this._config['random_shift' + suffix] === undefined || this._config['random_shift' + suffix] == 0) {
 								this._elements.digit[i * 15 + d].style.top = 0;
 							}
-							
+
 							//if markings are enabled, make the last window wider
 							if (this._config['markings' + suffix] && d == (total_digits - 1)) {
 								this._elements.digit_window[i * 15 + d].style.width = "24px";
@@ -904,10 +892,10 @@ _updateRollers() {
 					this._elements.redbg[i].style.width = (30 * digits_right + (markings_offset * (digits_right > 0))) + "px";
 					this._elements.redbg[i].style.left = ((-30 * digits_right) + 5 - markings_offset) + "px";
 					this._elements.greybg[i].style.left = this._elements.redbg[i].style.left;
-					
+
 					this._elements.markings[i].style.left = ((30 * total_digits) - 13) + "px";
-					
-					
+
+
 					if (this._config['show_name' + suffix] == true) {
 						this._elements.name[i].style.display = "block";
 						if (this._config['name' + suffix] == '' || this._config['name' + suffix] == undefined) {
@@ -921,8 +909,8 @@ _updateRollers() {
 					} else {
 						this._elements.name[i].style.display = "none";
 					}
-					
-					
+
+
 					var icon_w = 39;
 					if (this._config['icon' + suffix] != undefined) {
 						this._elements.icon[i].setAttribute("icon", this._config['icon' + suffix]);
@@ -931,7 +919,7 @@ _updateRollers() {
 						this._elements.icon_div[i].style.display = "none";
 						icon_w = 0;
 					}
-					
+
 					var unitOfMeasurement = this.getState().attributes.unit_of_measurement;
 					if (this._config['unit' + suffix] != undefined && String(this._config['unit' + suffix]).length > 0) {		//if unit is configured in Card's config, use it instead of entity's unit_of_measurement
 						unitOfMeasurement = this._config['unit' + suffix];
@@ -943,14 +931,14 @@ _updateRollers() {
 					} else {
 						this._elements.greybg[i].style.display = "inline-block";
 					}
-					
-					
+
+
 					//counter_div.width = icon_div.width + integer_div.width + redbg.width + markings_offset + greybg.width + greybg.padding (2x6)
 					var greybg_w = this._elements.greybg[i].getBoundingClientRect().width;
-					if (greybg_w > 0) {greybg_w += 12;}	//add padding width
+					if (greybg_w > 0) { greybg_w += 12; }	//add padding width
 					this._elements.counter_div[i].style.width = icon_w + (30 * digits_left) + (30 * digits_right + (markings_offset * (digits_right > 0))) + greybg_w + "px";
-			
-					
+
+
 
 					if (this._config['decimal_separator' + suffix] == "Point" || this._config['decimal_separator' + suffix] == undefined) {
 						this._elements.dp[i].innerHTML = ".";
@@ -967,36 +955,36 @@ _updateRollers() {
 					} else {
 						this._elements.dp[i].style.display = "inline-block";
 					}
-					
-					
+
+
 					if (this._config['integer_plate_color' + suffix] != undefined && this._config['integer_plate_color' + suffix] != '') {
 						this._elements.integer_div[i].style.backgroundColor = this._config['integer_plate_color' + suffix];
 					}
-					
+
 					if (this._config['decimal_plate_color' + suffix] != undefined && this._config['decimal_plate_color' + suffix] != '') {
 						this._elements.redbg[i].style.backgroundColor = this._config['decimal_plate_color' + suffix];
 					}
-					
+
 					if (this._config['unit_plate_color' + suffix] != undefined && this._config['unit_plate_color' + suffix] != '') {
 						this._elements.greybg[i].style.backgroundColor = this._config['unit_plate_color' + suffix];
 					}
-					
+
 					if (this._config['unit_color' + suffix] != undefined && this._config['unit_color' + suffix] != '') {
 						this._elements.greybg[i].style.color = this._config['unit_color' + suffix];
 					}
-					
+
 					if (this._config['digit_color' + suffix] != undefined && this._config['digit_color' + suffix] != '') {
 						for (var d = 0; d < total_digits; d++) {
 							this._elements.digit[i * 15 + d].style.backgroundImage = "linear-gradient(rgba(64,64,64,1), " + this._config['digit_color' + suffix] + ", rgba(64,64,64,1))";
 						}
 					}
-					
+
 					if (this._config['digit_bg_color' + suffix] != undefined && this._config['digit_bg_color' + suffix] != '') {
 						for (var d = 0; d < total_digits; d++) {
 							this._elements.digit_window[i * 15 + d].style.background = this._config['digit_bg_color' + suffix];
 						}
 					}
-					
+
 					if (this._config.font == undefined) {
 						for (var d = 0; d < total_digits; d++) {
 							this._elements.digit[i * 15 + d].style.fontFamily = "inherit";
@@ -1012,7 +1000,7 @@ _updateRollers() {
 							}
 						}
 					}
-					
+
 					for (var d = 0; d < total_digits; d++) {
 						if (this._config.font_size == undefined) {
 							this._elements.digit[i * 15 + d].style.fontSize = "26px";
@@ -1021,122 +1009,122 @@ _updateRollers() {
 						}
 					}
 
-					
+
 					// after digits for this counter are rendered, ensure roller exists for the last (LSB) digit
 					const lastD = total_digits - 1;
 					if (lastD >= 0) {
-					  const idx = i * 15 + lastD;
-					  const win = this._elements.digit_window[idx];
-					  // create roller if not present
-					  if (win && !win.querySelector('.osumc-digit-roller')) {
-					    // remove plain .osumc-digit-text and build roller structure
-					    win.innerHTML = ''; // remove plain .osumc-digit-text
-					    const roller = document.createElement('div');
-					    roller.className = 'osumc-digit-roller';
-					    const inner = document.createElement('div');
-					    inner.className = 'osumc-digit-roller-inner';
-					    // create digits 0..9 stacked vertically
-					    for (let n = 0; n < 10; n++) {
-					      const it = document.createElement('span');
-					      it.className = 'osumc-digit-roller-item';
-					      it.textContent = n;
-					      inner.appendChild(it);
-					    }
-					    roller.appendChild(inner);
-					    win.appendChild(roller);
-					    // determine measured item height (fallback to 24)
-					    const h = (inner.children[0].getBoundingClientRect().height) || 24;
-					    // apply per-digit visual styles so roller items match original digits
-					    const digitFontSize = (this._config && this._config.font_size) ? (this._config.font_size + 'px') : '26px';
-					    const digitFontFamily = (this._config && this._config.font == 'Carlito') ? 'Carlito' : 'inherit';
-					    const digitColorCfg = this._config['digit_color' + suffix];
-					    const gradient = digitColorCfg ? ('linear-gradient(rgba(64,64,64,1), ' + digitColorCfg + ', rgba(64,64,64,1))') : null;
-					    for (let k = 0; k < inner.children.length; k++) {
-					      const item = inner.children[k];
-					      item.style.fontSize = digitFontSize;
-					      item.style.fontFamily = digitFontFamily;
-					      // ensure vertical centering and proper height
-					      item.style.height = h + 'px';
-					      item.style.lineHeight = h + 'px';
-					      // if a digit color is configured, use the same gradient/text-clip technique
-					      if (gradient) {
-					        item.style.backgroundImage = gradient;
-					        item.style.color = 'transparent';
-					        item.style.webkitBackgroundClip = 'text';
-					        item.style.backgroundClip = 'text';
-					      } else {
-					        // fallback: inherit color so the digit is visible
-					        item.style.color = 'inherit';
-					      }
-					    }
-						  
-					    // set initial position so the correct digit is visible immediately
-					    const currentDigit = parseInt(cntr_str.substring(lastD, lastD + 1)) || 0;
-					    inner.style.transform = 'translateY(' + (-currentDigit * h) + 'px)';
-					    // store references
-					    this._rollers[i] = { inner: inner, itemHeight: h };
-					  } else if (win && win.querySelector('.osumc-digit-roller') && !this._rollers[i]) {
-					    // existing roller in DOM but not stored in _rollers -> store references and initialize position
-					    const inner = win.querySelector('.osumc-digit-roller-inner');
-					    const h = (inner.children[0].getBoundingClientRect().height) || 24;
-					    // try to apply styles to the existing items as well (in case they were created without styling)
-					    const digitFontSize = (this._config && this._config.font_size) ? (this._config.font_size + 'px') : '26px';
-					    const digitFontFamily = (this._config && this._config.font == 'Carlito') ? 'Carlito' : 'inherit';
-					    const digitColorCfg = this._config['digit_color' + suffix];
-					    const gradient = digitColorCfg ? ('linear-gradient(rgba(64,64,64,1), ' + digitColorCfg + ', rgba(64,64,64,1))') : null;
-					    for (let k = 0; k < inner.children.length; k++) {
-					      const item = inner.children[k];
-					      item.style.fontSize = digitFontSize;
-					      item.style.fontFamily = digitFontFamily;
-					      item.style.height = h + 'px';
-					      item.style.lineHeight = h + 'px';
-					      if (gradient) {
-					        item.style.backgroundImage = gradient;
-					        item.style.color = 'transparent';
-					        item.style.webkitBackgroundClip = 'text';
-					        item.style.backgroundClip = 'text';
-					      } else {
-					        item.style.color = 'inherit';
-					      }
-					    }
-					    // initialize visible digit immediately
-					    const currentDigit = parseInt(cntr_str.substring(lastD, lastD + 1)) || 0;
-					    inner.style.transform = 'translateY(' + (-currentDigit * h) + 'px)';
-					    this._rollers[i] = { inner: inner, itemHeight: h };
-					  }
+						const idx = i * 15 + lastD;
+						const win = this._elements.digit_window[idx];
+						// create roller if not present
+						if (win && !win.querySelector('.osumc-digit-roller')) {
+							// remove plain .osumc-digit-text and build roller structure
+							win.innerHTML = ''; // remove plain .osumc-digit-text
+							const roller = document.createElement('div');
+							roller.className = 'osumc-digit-roller';
+							const inner = document.createElement('div');
+							inner.className = 'osumc-digit-roller-inner';
+							// create digits 0..9 stacked vertically
+							for (let n = 0; n < 10; n++) {
+								const it = document.createElement('span');
+								it.className = 'osumc-digit-roller-item';
+								it.textContent = n;
+								inner.appendChild(it);
+							}
+							roller.appendChild(inner);
+							win.appendChild(roller);
+							// determine measured item height (fallback to 24)
+							const h = (inner.children[0].getBoundingClientRect().height) || 24;
+							// apply per-digit visual styles so roller items match original digits
+							const digitFontSize = (this._config && this._config.font_size) ? (this._config.font_size + 'px') : '26px';
+							const digitFontFamily = (this._config && this._config.font == 'Carlito') ? 'Carlito' : 'inherit';
+							const digitColorCfg = this._config['digit_color' + suffix];
+							const gradient = digitColorCfg ? ('linear-gradient(rgba(64,64,64,1), ' + digitColorCfg + ', rgba(64,64,64,1))') : null;
+							for (let k = 0; k < inner.children.length; k++) {
+								const item = inner.children[k];
+								item.style.fontSize = digitFontSize;
+								item.style.fontFamily = digitFontFamily;
+								// ensure vertical centering and proper height
+								item.style.height = h + 'px';
+								item.style.lineHeight = h + 'px';
+								// if a digit color is configured, use the same gradient/text-clip technique
+								if (gradient) {
+									item.style.backgroundImage = gradient;
+									item.style.color = 'transparent';
+									item.style.webkitBackgroundClip = 'text';
+									item.style.backgroundClip = 'text';
+								} else {
+									// fallback: inherit color so the digit is visible
+									item.style.color = 'inherit';
+								}
+							}
+
+							// set initial position so the correct digit is visible immediately
+							const currentDigit = parseInt(cntr_str.substring(lastD, lastD + 1)) || 0;
+							inner.style.transform = 'translateY(' + (-currentDigit * h) + 'px)';
+							// store references
+							this._rollers[i] = { inner: inner, itemHeight: h };
+						} else if (win && win.querySelector('.osumc-digit-roller') && !this._rollers[i]) {
+							// existing roller in DOM but not stored in _rollers -> store references and initialize position
+							const inner = win.querySelector('.osumc-digit-roller-inner');
+							const h = (inner.children[0].getBoundingClientRect().height) || 24;
+							// try to apply styles to the existing items as well (in case they were created without styling)
+							const digitFontSize = (this._config && this._config.font_size) ? (this._config.font_size + 'px') : '26px';
+							const digitFontFamily = (this._config && this._config.font == 'Carlito') ? 'Carlito' : 'inherit';
+							const digitColorCfg = this._config['digit_color' + suffix];
+							const gradient = digitColorCfg ? ('linear-gradient(rgba(64,64,64,1), ' + digitColorCfg + ', rgba(64,64,64,1))') : null;
+							for (let k = 0; k < inner.children.length; k++) {
+								const item = inner.children[k];
+								item.style.fontSize = digitFontSize;
+								item.style.fontFamily = digitFontFamily;
+								item.style.height = h + 'px';
+								item.style.lineHeight = h + 'px';
+								if (gradient) {
+									item.style.backgroundImage = gradient;
+									item.style.color = 'transparent';
+									item.style.webkitBackgroundClip = 'text';
+									item.style.backgroundClip = 'text';
+								} else {
+									item.style.color = 'inherit';
+								}
+							}
+							// initialize visible digit immediately
+							const currentDigit = parseInt(cntr_str.substring(lastD, lastD + 1)) || 0;
+							inner.style.transform = 'translateY(' + (-currentDigit * h) + 'px)';
+							this._rollers[i] = { inner: inner, itemHeight: h };
+						}
 					} else {
-					  // no digit windows -> remove possible roller
-					  this._rollers[i] = null;
+						// no digit windows -> remove possible roller
+						this._rollers[i] = null;
 					}
-					
+
 					if (this._config['decimal_separator_color' + suffix] != undefined && this._config['decimal_separator_color' + suffix] != '') {
 						this._elements.dp[i].style.color = this._config['decimal_separator_color' + suffix];
 					}
-					
+
 					if (this._config['icon_color' + suffix] != undefined && this._config['icon_color' + suffix] != '') {
 						this._elements.icon[i].style.color = this._config['icon_color' + suffix];
 					}
-					
+
 					if (this._config['icon_background_color' + suffix] != undefined && this._config['icon_background_color' + suffix] != '') {
 						this._elements.icon_div[i].style.backgroundColor = this._config['icon_background_color' + suffix];
 					}
-					
+
 					if (this._config['decimal_separator_color' + suffix] != undefined && this._config['decimal_separator_color' + suffix] != '') {
 						this._elements.dp[i].style.color = this._config['decimal_separator_color' + suffix];
 					}
-					
+
 					if (this._config['markings' + suffix]) {
 						this._elements.markings[i].style.display = "block";
 					} else {
 						this._elements.markings[i].style.display = "none";
 					}
-					
+
 					if (this._config['markings_color' + suffix] != undefined && this._config['markings_color' + suffix] != '') {
 						this._elements.markings[i].style.color = this._config['markings_color' + suffix];
 					}
-					
-					
-					
+
+
+
 					//set scale
 					if (this._config['scale' + suffix] == 100 || this._config['scale' + suffix] == '' || this._config['scale' + suffix] == undefined || !isNumeric(this._config['scale' + suffix])) {
 						this._elements.counter_div[i].style.transform = "scale(100%)";
@@ -1145,25 +1133,25 @@ _updateRollers() {
 					}
 				}
 			}
-			
-			
-			
+
+
+
 			if (this._config.show_wheel) {
 				//show the main <div> element with wheel
 				this._elements.wheel_window.style.display = "block";
-				
+
 				var reverse_dir = false;
-				
+
 				//set custom wheel color
 				if (this._config.wheel_color != undefined && this._config.wheel_color != '') {
 					this._elements.wheel.style.backgroundImage = "linear-gradient(to right, #111 -5%, " + this._config.wheel_color + " 50%, #111 105%)";
 				}
-				
+
 				//set custom marker color
 				if (this._config.wheel_marker_color != undefined && this._config.wheel_marker_color != '') {
 					this._elements.wheel_marker.style.backgroundColor = this._config.wheel_marker_color;
 				}
-				
+
 				//set custom marker width
 				var r = document.querySelector(':root');
 				if (this._config.marker_width != undefined && this._config.marker_width != '') {
@@ -1189,7 +1177,7 @@ _updateRollers() {
 				} else {	//dynamic speed based on value of selected custom Power entity
 					if (this._config.power_entity && typeof this._config.power_entity === "string") {
 						var power_val = parseFloat(this._hass.states[this._config.power_entity].state);
-						
+
 						if (this._config.speed_control_mode == 'Power') {
 							//formula to calculate animation time (rotation speed) of the wheel
 							//from current state of Power entity and defined constants
@@ -1207,7 +1195,7 @@ _updateRollers() {
 								this._elements.wheel_marker.style.animationDuration = calc_wheel_speed + "s";
 							}
 						} else {
-							if (power_val == 0 || !isNumeric(power_val)){
+							if (power_val == 0 || !isNumeric(power_val)) {
 								this._elements.wheel_marker.style.animationDuration = 0 + "s";
 							} else {
 								var rotationsPerKwh = this._config.rot_time_per_kwh;
@@ -1215,7 +1203,7 @@ _updateRollers() {
 								this._elements.wheel_marker.style.animationDuration = calc_wheel_speed + "s";
 							}
 						}
-						
+
 						//reverse the marker direction if the power value is negative
 						if (power_val < 0) {
 							reverse_dir = true;
@@ -1224,7 +1212,7 @@ _updateRollers() {
 						this._elements.wheel_marker.style.removeProperty('animation-duration');
 					}
 				}
-				
+
 				//reverse the marker direction if the power value is negative
 				if (reverse_dir) {
 					this._elements.wheel_marker.style.animationName = 'osumc-wheel-animation-reverse';
@@ -1235,28 +1223,28 @@ _updateRollers() {
 				this._elements.wheel_marker.style.animationDuration = 0;
 				this._elements.wheel_window.style.display = "none";
 			}
-			
+
 			// if there is at least one roller configured and power_entity exists, start animation
 			if (this._rollers.some(x => x)) {
-			  this._startRollAnimation();
+				this._startRollAnimation();
 			} else {
-			  this._stopRollAnimation();
+				this._stopRollAnimation();
 			}
-			
+
 			this._elements.error.classList.add("osumc-error--hidden");
 		}
-    }
+	}
 
-    /*
+	/*
 	doToggle() {
-        this._hass.callService('input_boolean', 'toggle', {
-            entity_id: this.getEntityID()
-        });
-    }*/
+		this._hass.callService('input_boolean', 'toggle', {
+			entity_id: this.getEntityID()
+		});
+	}*/
 
-    // configuration defaults
-    static getStubConfig() {
-        return {
+	// configuration defaults
+	static getStubConfig() {
+		return {
 			entity: "",
 			name: "Energy meter",
 			show_name: true,
@@ -1280,222 +1268,222 @@ _updateRollers() {
 			scale: 100,
 			rot_time_per_kwh: 75,
 		}
-    }
+	}
 
 	static getConfigForm() {
-	
-    var sch = {
-		schema: [
-			{ name: "entity", required: true, selector: { entity: {} } },
-			{ name: "name", selector: { text: {} } },
-			{ name: "show_name", selector: { boolean: {} } },
-			{ name: "whole_digit_number", selector: { number: { min: 0, max: 10, step: 1, mode: "slider" } } },
-			{ name: "decimal_digit_number", selector: { number: { min: 0, max: 5, step: 1, mode: "slider" } } },
-			{ name: "scale", required: true, selector: { number: { min: 25, max: 200, step: 5, mode: "slider" } } },
-			{ name: "decimal_separator", selector: { select: { mode: "list", options: ["Point", "Comma", "Colon", "None"] } } },
-			{ name: "markings", selector: { boolean: {} } },
-			{ name: "random_shift", selector: { number: { min: 0, max: 2, step: 1, mode: "slider" } } },
-			{ name: "offset", selector: { number: { step: "any", mode: "box" } } },
-			{
-				name: "icon",
-				selector: {
-					icon: {},
+
+		var sch = {
+			schema: [
+				{ name: "entity", required: true, selector: { entity: {} } },
+				{ name: "name", selector: { text: {} } },
+				{ name: "show_name", selector: { boolean: {} } },
+				{ name: "whole_digit_number", selector: { number: { min: 0, max: 10, step: 1, mode: "slider" } } },
+				{ name: "decimal_digit_number", selector: { number: { min: 0, max: 5, step: 1, mode: "slider" } } },
+				{ name: "scale", required: true, selector: { number: { min: 25, max: 200, step: 5, mode: "slider" } } },
+				{ name: "decimal_separator", selector: { select: { mode: "list", options: ["Point", "Comma", "Colon", "None"] } } },
+				{ name: "markings", selector: { boolean: {} } },
+				{ name: "random_shift", selector: { number: { min: 0, max: 2, step: 1, mode: "slider" } } },
+				{ name: "offset", selector: { number: { step: "any", mode: "box" } } },
+				{
+					name: "icon",
+					selector: {
+						icon: {},
+					},
+					context: {
+						icon_entity: "entity",
+					},
 				},
-				context: {
-					icon_entity: "entity",
-				},
+				{ name: "unit", selector: { text: {} } },
+
+				{ name: "show_wheel", selector: { boolean: {} } },
+				{ name: "marker_width", selector: { number: { min: 3, max: 100, step: 1, mode: "slider" } } },
+				{ name: "speed_control_mode", selector: { select: { mode: "list", options: ["Fixed", "Power", "Realistic"] } } },
+				{ name: "wheel_speed", selector: { number: { min: -20, max: 20, step: 0.1, mode: "slider" } } },
+				{ name: "power_entity", selector: { entity: {} } },
+				{ name: "max_power_value", selector: { number: { step: "any", mode: "box" } } },
+				{ name: "min_rot_time", selector: { number: { min: 0.1, step: 0.1, mode: "box" } } },
+				{ name: "max_rot_time", selector: { number: { min: 0.1, step: 0.1, mode: "box" } } },
+				{ name: "rot_time_per_kwh", selector: { number: { min: 1, step: 1, mode: "box" } } },
+
+				{ name: "plate_color", selector: { text: {} } },
+				{ name: "name_color", selector: { text: {} } },
+				{ name: "icon_color", selector: { text: {} } },
+				{ name: "icon_background_color", selector: { text: {} } },
+				{ name: "integer_plate_color", disabled: false, selector: { text: {} } },
+				{ name: "decimal_plate_color", selector: { text: {} } },
+				{ name: "unit_plate_color", selector: { text: {} } },
+				{ name: "unit_color", selector: { text: {} } },
+				{ name: "digit_color", selector: { text: {} } },
+				{ name: "digit_bg_color", selector: { text: {} } },
+				{ name: "decimal_separator_color", selector: { text: {} } },
+				{ name: "markings_color", selector: { text: {} } },
+
+				{ name: "wheel_color", selector: { text: {} } },
+				{ name: "wheel_marker_color", selector: { text: {} } },
+
+				{ name: "font", selector: { select: { mode: "dropdown", options: ["Default", "Carlito"] } } },
+				{ name: "font_size", selector: { text: {} } },
+
+				//{ name: "plate_color", disabled: true, selector: { color_rgb: {} } },
+				//{ name: "theme", selector: { theme: {} } },
+			],
+
+			computeLabel: (schema) => {
+				if (schema.name === "icon") return "Special Icon";
+				return undefined;
 			},
-			{ name: "unit", selector: { text: {} } },
 
-			{ name: "show_wheel", selector: { boolean: {} } },
-			{ name: "marker_width", selector: { number: { min: 3, max: 100, step: 1, mode: "slider" } } },
-			{ name: "speed_control_mode", selector: { select: { mode: "list", options: ["Fixed", "Power", "Realistic"] } } },
-			{ name: "wheel_speed", selector: { number: { min: -20, max: 20, step: 0.1, mode: "slider" } } },
-			{ name: "power_entity", selector: { entity: {} } },
-			{ name: "max_power_value", selector: { number: { step: "any", mode: "box" } } },
-			{ name: "min_rot_time", selector: { number: { min: 0.1, step: 0.1, mode: "box" } } },
-			{ name: "max_rot_time", selector: { number: { min: 0.1, step: 0.1, mode: "box" } } },
-			{ name: "rot_time_per_kwh", selector: { number: { min: 1, step: 1, mode: "box" } } },
-			
-			{ name: "plate_color", selector: { text: {} } },
-			{ name: "name_color", selector: { text: {} } },
-			{ name: "icon_color", selector: { text: {} } },
-			{ name: "icon_background_color", selector: { text: {} } },
-			{ name: "integer_plate_color", disabled: false, selector: { text: {} } },
-			{ name: "decimal_plate_color", selector: { text: {} } },
-			{ name: "unit_plate_color", selector: { text: {} } },
-			{ name: "unit_color", selector: { text: {} } },
-			{ name: "digit_color", selector: { text: {} } },
-			{ name: "digit_bg_color", selector: { text: {} } },
-			{ name: "decimal_separator_color", selector: { text: {} } },
-			{ name: "markings_color", selector: { text: {} } },
-
-			{ name: "wheel_color", selector: { text: {} } },
-			{ name: "wheel_marker_color", selector: { text: {} } },
-
-			{ name: "font", selector: { select: { mode: "dropdown", options: ["Default", "Carlito"] } } },
-			{ name: "font_size", selector: { text: {} } },
-
-			//{ name: "plate_color", disabled: true, selector: { color_rgb: {} } },
-			//{ name: "theme", selector: { theme: {} } },
-		],
-		
-		computeLabel: (schema) => {
-			if (schema.name === "icon") return "Special Icon";
-			return undefined;
-		},
-		
-		computeHelper: (schema) => {
-			switch (schema.name) {
-				case "entity":
-					return "Choose entity to show on meter";
-				case "unit":
-					return "The unit of measurement for this card. If not filled, unit is taken from selected entity. (0 = hide unit)";
-				case "whole_digit_number":
-					return "Number of digits to the left of decimal point. (0 - 10, 99 = auto)";
-				case "decimal_digit_number":
-					return "Number of digits to the right of decimal point. (0 - 5, 99 = auto)";
-				case "offset":
-					return "This value will be added to entity's value. If negative, it will be subtracted.";
-				case "random_shift":
-					return "Shift digits vertically randomly by ±1 or ±2px, to get a more realistic look. Set 0 to disable shift.";
-				case "markings":
-					return "Show minor markings on last digit.";
-				case "plate_color":
-					return "You can set your desired colors for the following elements of the card. Use color codes supported by CSS, e.g. #FFF, #C0C0C0, black, rgb(128, 128, 128), rgba(64, 0, 0, 0.25)...";
-				case "font":
-					return "Applies only to digits";
-				case "font_size":
-					return "Applies only to digits";
-				case "show_wheel":
-					return "Shows a rotating wheel with marker, like on real electricity meter";
-				case "speed_control_mode":
-					return "Fixed - the wheel rotates with constant speed defined below. Power - the speed depends on sensor value of a defined entity, can be Power, Current, Flow... Realistic - Emulates real utility meters";
-				case "wheel_speed":
-					return "Speed of the wheel. Number of seconds per single rotation (-20 to 20, 0 = STOP, 0.1 - fastest, 20 - slowest, negative values = reverse direction)";
-				case "power_entity":
-					return "Select the entity which will affect the rotation speed of the wheel. Usually Power or Current when measuring Electricity consumption, Flow for water consumption etc.";
-				case "min_rot_time":
-					return "Duration of a single rotation at highest speed (in seconds, minimum 0.1). See Readme for deeper explanation.";
-				case "max_rot_time":
-					return "Duration of a single rotation at lowest speed (in seconds, minimum 0.1). See Readme for deeper explanation.";
-				case "max_power_value":
-					return "Maximum expected value of the above entity, at which the wheel will rotate at max speed. See Readme for deeper explanation.";
-				case "scale":
-					return "Set the scale of the counter (default = 100%). In case you have too many digits that you want to display and the counter doesn't fit into card. Or if you want to make the counter bigger.";
-				case "rot_time_per_kwh":
-					return "Set the amount of rotations the wheel should complete per used kwh. Default value is 75. If your Power Entity returns kW instead of W, enter the value multiplied by 1000 (75.000).";
-			}
-			return undefined;
-		},
-		
-		assertConfig: (config) => {
-			if (config.other_option) {
-				throw new Error("'other_option' is unexpected.");
-			}
-
-			if (!config.entity || typeof config.entity !== "string") {
-				//throw new Error('Configuration error: "entity" must be a non-empty string.');
-			}
-
-			if (config.min_rot_time !== undefined && isNaN(Number(config.min_rot_time))) {
-				throw new Error('Configuration error: "min_rot_time" must be a valid number.');
-			}
-			
-			if (config.max_rot_time !== undefined && isNaN(Number(config.max_rot_time))) {
-				throw new Error('Configuration error: "max_rot_time" must be a valid number.');
-			}
-
-
-			var w = getSchIndex(sch, 'decimal_separator');
-			if (config.decimal_digit_number == 0) {
-				sch.schema[w].disabled = true;
-			} else {
-				sch.schema[w].disabled = false;
-			}
-
-
-			if (config.show_wheel == false) {
-				w = getSchIndex(sch, 'speed_control_mode');
-				sch.schema[w].disabled = true;
-				w = getSchIndex(sch, 'marker_width');
-				sch.schema[w].disabled = true;
-				w = getSchIndex(sch, 'wheel_speed');
-				sch.schema[w].disabled = true;
-				w = getSchIndex(sch, 'power_entity');
-				sch.schema[w].disabled = true;
-				w = getSchIndex(sch, 'max_power_value');
-				sch.schema[w].disabled = true;
-				w = getSchIndex(sch, 'min_rot_time');
-				sch.schema[w].disabled = true;
-				w = getSchIndex(sch, 'max_rot_time');
-				sch.schema[w].disabled = true;
-				w = getSchIndex(sch, 'rot_time_per_kwh');
-				sch.schema[w].disabled = true;
-			} else {
-				w = getSchIndex(sch, 'speed_control_mode');
-				sch.schema[w].disabled = false;
-				w = getSchIndex(sch, 'marker_width');
-				sch.schema[w].disabled = false;
-				
-				if (config.speed_control_mode == 'Fixed') {
-					w = getSchIndex(sch, 'wheel_speed');
-					sch.schema[w].disabled = false;
-					sch.schema[w].required = true;
-					w = getSchIndex(sch, 'power_entity');
-					sch.schema[w].required = false;
-					sch.schema[w].disabled = true;
-					w = getSchIndex(sch, 'max_power_value');
-					sch.schema[w].disabled = true;
-					w = getSchIndex(sch, 'min_rot_time');
-					sch.schema[w].required = false;
-					sch.schema[w].disabled = true;
-					w = getSchIndex(sch, 'max_rot_time');
-					sch.schema[w].required = false;
-					sch.schema[w].disabled = true;
-					w = getSchIndex(sch, 'rot_time_per_kwh');
-					sch.schema[w].required = false;
-					sch.schema[w].disabled = true;
-				} else if (config.speed_control_mode == 'Realistic'){
-					w = getSchIndex(sch, 'wheel_speed');
-					sch.schema[w].disabled = true;
-					sch.schema[w].required = false;
-					w = getSchIndex(sch, 'power_entity');
-					sch.schema[w].required = true;
-					sch.schema[w].disabled = false;
-					w = getSchIndex(sch, 'max_power_value');
-					sch.schema[w].required = false;
-					sch.schema[w].disabled = true;
-					w = getSchIndex(sch, 'min_rot_time');
-					sch.schema[w].required = false;
-					sch.schema[w].disabled = true;
-					w = getSchIndex(sch, 'max_rot_time');
-					sch.schema[w].required = false;
-					sch.schema[w].disabled = true;
-					w = getSchIndex(sch, 'rot_time_per_kwh');
-					sch.schema[w].required = true;
-					sch.schema[w].disabled = false;
-				} else {
-					w = getSchIndex(sch, 'wheel_speed');
-					sch.schema[w].required = false;
-					sch.schema[w].disabled = true;
-					w = getSchIndex(sch, 'power_entity');
-					sch.schema[w].disabled = false;
-					sch.schema[w].required = true;
-					w = getSchIndex(sch, 'max_power_value');
-					sch.schema[w].disabled = false;
-					w = getSchIndex(sch, 'min_rot_time');
-					sch.schema[w].disabled = false;
-					sch.schema[w].required = true;
-					w = getSchIndex(sch, 'max_rot_time');
-					sch.schema[w].disabled = false;
-					sch.schema[w].required = true;
+			computeHelper: (schema) => {
+				switch (schema.name) {
+					case "entity":
+						return "Choose entity to show on meter";
+					case "unit":
+						return "The unit of measurement for this card. If not filled, unit is taken from selected entity. (0 = hide unit)";
+					case "whole_digit_number":
+						return "Number of digits to the left of decimal point. (0 - 10, 99 = auto)";
+					case "decimal_digit_number":
+						return "Number of digits to the right of decimal point. (0 - 5, 99 = auto)";
+					case "offset":
+						return "This value will be added to entity's value. If negative, it will be subtracted.";
+					case "random_shift":
+						return "Shift digits vertically randomly by ±1 or ±2px, to get a more realistic look. Set 0 to disable shift.";
+					case "markings":
+						return "Show minor markings on last digit.";
+					case "plate_color":
+						return "You can set your desired colors for the following elements of the card. Use color codes supported by CSS, e.g. #FFF, #C0C0C0, black, rgb(128, 128, 128), rgba(64, 0, 0, 0.25)...";
+					case "font":
+						return "Applies only to digits";
+					case "font_size":
+						return "Applies only to digits";
+					case "show_wheel":
+						return "Shows a rotating wheel with marker, like on real electricity meter";
+					case "speed_control_mode":
+						return "Fixed - the wheel rotates with constant speed defined below. Power - the speed depends on sensor value of a defined entity, can be Power, Current, Flow... Realistic - Emulates real utility meters";
+					case "wheel_speed":
+						return "Speed of the wheel. Number of seconds per single rotation (-20 to 20, 0 = STOP, 0.1 - fastest, 20 - slowest, negative values = reverse direction)";
+					case "power_entity":
+						return "Select the entity which will affect the rotation speed of the wheel. Usually Power or Current when measuring Electricity consumption, Flow for water consumption etc.";
+					case "min_rot_time":
+						return "Duration of a single rotation at highest speed (in seconds, minimum 0.1). See Readme for deeper explanation.";
+					case "max_rot_time":
+						return "Duration of a single rotation at lowest speed (in seconds, minimum 0.1). See Readme for deeper explanation.";
+					case "max_power_value":
+						return "Maximum expected value of the above entity, at which the wheel will rotate at max speed. See Readme for deeper explanation.";
+					case "scale":
+						return "Set the scale of the counter (default = 100%). In case you have too many digits that you want to display and the counter doesn't fit into card. Or if you want to make the counter bigger.";
+					case "rot_time_per_kwh":
+						return "Set the amount of rotations the wheel should complete per used kwh. Default value is 75. If your Power Entity returns kW instead of W, enter the value multiplied by 1000 (75.000).";
 				}
-			}
-		},
-	};
-	
-	return sch;
+				return undefined;
+			},
+
+			assertConfig: (config) => {
+				if (config.other_option) {
+					throw new Error("'other_option' is unexpected.");
+				}
+
+				if (!config.entity || typeof config.entity !== "string") {
+					//throw new Error('Configuration error: "entity" must be a non-empty string.');
+				}
+
+				if (config.min_rot_time !== undefined && isNaN(Number(config.min_rot_time))) {
+					throw new Error('Configuration error: "min_rot_time" must be a valid number.');
+				}
+
+				if (config.max_rot_time !== undefined && isNaN(Number(config.max_rot_time))) {
+					throw new Error('Configuration error: "max_rot_time" must be a valid number.');
+				}
+
+
+				var w = getSchIndex(sch, 'decimal_separator');
+				if (config.decimal_digit_number == 0) {
+					sch.schema[w].disabled = true;
+				} else {
+					sch.schema[w].disabled = false;
+				}
+
+
+				if (config.show_wheel == false) {
+					w = getSchIndex(sch, 'speed_control_mode');
+					sch.schema[w].disabled = true;
+					w = getSchIndex(sch, 'marker_width');
+					sch.schema[w].disabled = true;
+					w = getSchIndex(sch, 'wheel_speed');
+					sch.schema[w].disabled = true;
+					w = getSchIndex(sch, 'power_entity');
+					sch.schema[w].disabled = true;
+					w = getSchIndex(sch, 'max_power_value');
+					sch.schema[w].disabled = true;
+					w = getSchIndex(sch, 'min_rot_time');
+					sch.schema[w].disabled = true;
+					w = getSchIndex(sch, 'max_rot_time');
+					sch.schema[w].disabled = true;
+					w = getSchIndex(sch, 'rot_time_per_kwh');
+					sch.schema[w].disabled = true;
+				} else {
+					w = getSchIndex(sch, 'speed_control_mode');
+					sch.schema[w].disabled = false;
+					w = getSchIndex(sch, 'marker_width');
+					sch.schema[w].disabled = false;
+
+					if (config.speed_control_mode == 'Fixed') {
+						w = getSchIndex(sch, 'wheel_speed');
+						sch.schema[w].disabled = false;
+						sch.schema[w].required = true;
+						w = getSchIndex(sch, 'power_entity');
+						sch.schema[w].required = false;
+						sch.schema[w].disabled = true;
+						w = getSchIndex(sch, 'max_power_value');
+						sch.schema[w].disabled = true;
+						w = getSchIndex(sch, 'min_rot_time');
+						sch.schema[w].required = false;
+						sch.schema[w].disabled = true;
+						w = getSchIndex(sch, 'max_rot_time');
+						sch.schema[w].required = false;
+						sch.schema[w].disabled = true;
+						w = getSchIndex(sch, 'rot_time_per_kwh');
+						sch.schema[w].required = false;
+						sch.schema[w].disabled = true;
+					} else if (config.speed_control_mode == 'Realistic') {
+						w = getSchIndex(sch, 'wheel_speed');
+						sch.schema[w].disabled = true;
+						sch.schema[w].required = false;
+						w = getSchIndex(sch, 'power_entity');
+						sch.schema[w].required = true;
+						sch.schema[w].disabled = false;
+						w = getSchIndex(sch, 'max_power_value');
+						sch.schema[w].required = false;
+						sch.schema[w].disabled = true;
+						w = getSchIndex(sch, 'min_rot_time');
+						sch.schema[w].required = false;
+						sch.schema[w].disabled = true;
+						w = getSchIndex(sch, 'max_rot_time');
+						sch.schema[w].required = false;
+						sch.schema[w].disabled = true;
+						w = getSchIndex(sch, 'rot_time_per_kwh');
+						sch.schema[w].required = true;
+						sch.schema[w].disabled = false;
+					} else {
+						w = getSchIndex(sch, 'wheel_speed');
+						sch.schema[w].required = false;
+						sch.schema[w].disabled = true;
+						w = getSchIndex(sch, 'power_entity');
+						sch.schema[w].disabled = false;
+						sch.schema[w].required = true;
+						w = getSchIndex(sch, 'max_power_value');
+						sch.schema[w].disabled = false;
+						w = getSchIndex(sch, 'min_rot_time');
+						sch.schema[w].disabled = false;
+						sch.schema[w].required = true;
+						w = getSchIndex(sch, 'max_rot_time');
+						sch.schema[w].disabled = false;
+						sch.schema[w].required = true;
+					}
+				}
+			},
+		};
+
+		return sch;
 	}
 
 }
@@ -1514,7 +1502,7 @@ customElements.define("old-style-utility-meter-card", OldStyleUtilityMeterCard);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-    type: "old-style-utility-meter-card",
-    name: "Old Style Utility Meter Card",
-    description: "A graphical representation of old style utility meter"
+	type: "old-style-utility-meter-card",
+	name: "Old Style Utility Meter Card",
+	description: "A graphical representation of old style utility meter"
 });
