@@ -621,91 +621,124 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 		}
 	}
 
-_updateRollers() {
-  const nowS = Date.now() / 1000;
+	_updateRollers() {
+		// Update roller for each configured counter that has a roller object
+		for (let i = 0; i < MAX_COUNTERS; i++) {
+			const r = this._rollers[i];
+			if (!r) continue;
+			const suffix = (i > 0) ? '_' + (i + 1) : '';
+			const entityId = this._config['entity' + suffix];
+			if (!entityId) continue;
+			// read base entity value and last update time
+			const stateObj = this._hass.states[entityId];
+			if (!stateObj) continue;
+			const baseVal = parseFloat(stateObj.state) || 0;
+			const lastUpdated = new Date(stateObj.last_updated).getTime() / 1000;
+			// read power if configured
+			let powerVal = 0;
+			if (this._config.power_entity && this._hass.states[this._config.power_entity]) {
+				powerVal = parseFloat(this._hass.states[this._config.power_entity].state) || 0;
+				// adjust if power_entity unit is kW -> convert to W
+				const pUnit = (this._hass.states[this._config.power_entity].attributes || {}).unit_of_measurement || '';
+				if (String(pUnit).toLowerCase().includes('kw')) {
+					powerVal = powerVal * 1000; // now in W
+				}
+			}
+			// estimate current value from last update using power (power in W)
+			const nowS = Date.now() / 1000;
+			const deltaS = Math.max(0, nowS - lastUpdated);
+			const estVal = baseVal + (powerVal * deltaS) / 3600000; // converts W * s -> kWh
+			// compute scaling depending on decimal digits used for that counter
+			const digits_right = Number(this._config['decimal_digit_number' + suffix] || 0);
+			const factor = Math.pow(10, digits_right);
+			const scaled = estVal * factor; // scaled value (signed)
 
-  for (let i = 0; i < MAX_COUNTERS; i++) {
-    const r = this._rollers[i];
-    if (!r) continue;
-    const suffix = (i > 0) ? '_' + (i + 1) : '';
-    const entityId = this._config['entity' + suffix];
-    if (!entityId) continue;
+			// compute digit index and fractional amount using magnitude
+			const absScaled = Math.abs(scaled);
+			const intPartAbs = Math.floor(absScaled);
+			const digitIndex = intPartAbs % 10;                // 0..9
+			const frac = absScaled - intPartAbs;               // fractional part 0..1
 
-    const stateObj = this._hass.states[entityId];
-    if (!stateObj) continue;
-    const baseVal = parseFloat(stateObj.state) || 0;
-    const lastUpdated = new Date(stateObj.last_updated).getTime() / 1000;
+			// direction: positive power => roll up (increasing), negative => roll down (decreasing)
+			const direction = (powerVal >= 0) ? 1 : -1;
 
-    // read power if configured
-    let powerVal = 0;
-    if (this._config.power_entity && this._hass.states[this._config.power_entity]) {
-      powerVal = parseFloat(this._hass.states[this._config.power_entity].state) || 0;
-      const pUnit = (this._hass.states[this._config.power_entity].attributes || {}).unit_of_measurement || '';
-      if (String(pUnit).toLowerCase().includes('kw')) {
-        powerVal = powerVal * 1000; // convert kW -> W
-      }
-    }
+			// each roller item height
+			const itemH = r.itemHeight || 24;
 
-    // estimate base value (kept for initialization / occasional snap)
-    const deltaS_from_state = Math.max(0, nowS - lastUpdated);
-    const estVal = baseVal + (powerVal * deltaS_from_state) / 3600000; // W * s -> kWh
+			// base target position for the digit wheel (0..10)
+			const posBase = digitIndex + frac;
 
-    // compute scale for last digit (decimal places)
-    const digits_right = Number(this._config['decimal_digit_number' + suffix] || 0);
-    const factor = Math.pow(10, digits_right);
+			// inner count (we expect 3 copies -> 30 items, but read it dynamically)
+			const innerCount = (r.inner && r.inner.children) ? r.inner.children.length : 30;
 
-    // compute nominal fractional position for the least-significant displayed digit
-    const scaledAbs = Math.abs(estVal * factor);
-    const intPartAbs = Math.floor(scaledAbs);
-    const digitIndex = intPartAbs % 10;
-    const frac = scaledAbs - intPartAbs;
-    const posBase = digitIndex + frac; // 0..10-ish (fractional digit index)
+			// recover previous logical position if available (in extended domain)
+			let prevPos = (r.pos !== undefined) ? r.pos : null;
+			if (prevPos === null) {
+				const tf = (r.inner && r.inner.style && r.inner.style.transform) ? r.inner.style.transform : '';
+				const m = tf.match(/translateY\((-?[\d.]+)px\)/);
+				if (m) {
+					const curY = parseFloat(m[1]);
+					if (!isNaN(curY) && itemH !== 0) {
+						prevPos = -curY / itemH;
+					}
+				}
+			}
+			if (prevPos === null) {
+				// fallback init in middle copy (center around +10)
+				prevPos = posBase + 10;
+			}
 
-    // ensure items / itemHeight are available
-    const itemH = r.itemHeight || 24;
-    const innerCount = (r.inner && r.inner.children) ? r.inner.children.length : 30;
+			// build candidate positions (extended domain). Include a further +20 candidate so
+			// wrapping up from 9->0 can advance into the third copy smoothly.
+			const rawCandidates = [posBase - 10, posBase, posBase + 10, posBase + 20];
+			// filter candidates that actually map into existing indexes [0, innerCount-1]
+			const candidates = rawCandidates.filter(c => c >= 0 && c <= innerCount - 1);
 
-    // initialize r.pos to the middle copy (posBase + 10) if missing
-    if (r.pos === undefined || r.pos === null) {
-      r.pos = posBase + 10;
-      // set transform immediately
-      r.inner.style.transform = `translateY(${-r.pos * itemH}px)`;
-      r._lastFrame = nowS;
-      continue;
-    }
+			// If no valid candidate after filtering (unlikely), just use posBase clamped into range
+			if (candidates.length === 0) {
+				let clamped = Math.max(0, Math.min(innerCount - 1, posBase + 10));
+				r.pos = clamped;
+				const translateY_fallback = -r.pos * itemH;
+				if (!isNaN(translateY_fallback) && r.inner) {
+					r.inner.style.transform = `translateY(${translateY_fallback}px)`;
+				}
+				continue;
+			}
 
-    // compute dt since last roller update (fallback to small dt)
-    const lastFrame = r._lastFrame || nowS;
-    const dt = Math.max(0, Math.min(1, nowS - lastFrame)); // clamp dt to avoid huge jumps
-    r._lastFrame = nowS;
+			// pick candidate that continues motion in intended direction (smallest abs delta > 0 in that direction).
+			// If none move in that direction, pick the nearest candidate (smallest abs delta).
+			let chosen = candidates[0];
+			let bestScore = Infinity;
+			let foundSameDir = false;
+			for (let c = 0; c < candidates.length; c++) {
+				const cand = candidates[c];
+				const delta = cand - prevPos;
+				const absDelta = Math.abs(delta);
+				const sameDir = (delta === 0) || (direction > 0 ? delta > 0 : delta < 0);
+				if (sameDir) {
+					if (!foundSameDir || absDelta < bestScore) {
+						foundSameDir = true;
+						bestScore = absDelta;
+						chosen = cand;
+					}
+				} else if (!foundSameDir) {
+					if (absDelta < bestScore) {
+						bestScore = absDelta;
+						chosen = cand;
+					}
+				}
+			}
 
-    // ticks per second: derived from power (W) -> kWh/s = power / 3600000; multiply by factor = ticks/sec
-    const ticksPerSecond = (powerVal / 3600000) * factor;
+			// store chosen logical position for continuity
+			r.pos = chosen;
 
-    // integrate position using speed (this makes speed changes smooth, position continuous)
-    r.pos += ticksPerSecond * dt;
-
-    // keep r.pos inside the "middle area" so we always have digits around it.
-    // the inner typically contains 3 copies -> length ~ 30; keep pos around middle copy (10..19)
-    // if pos wandered out, fold it back by adding/subtracting 10 as needed
-    while (r.pos < 10) r.pos += 10;
-    while (r.pos >= innerCount - 10) r.pos -= 10;
-
-    // Occasionally correct huge drift vs. instantaneous estimate (e.g., after sensor reset):
-    const targetPos = posBase + 10; // where the instant estimate would put us
-    const drift = Math.abs(r.pos - targetPos);
-    const driftSnapThreshold = 20; // tweakable: if discrepancy larger than this many ticks, snap
-    if (drift > driftSnapThreshold) {
-      r.pos = targetPos;
-    }
-
-    // apply transform
-    const translateY = -r.pos * itemH;
-    if (!isNaN(translateY) && r.inner) {
-      r.inner.style.transform = `translateY(${translateY}px)`;
-    }
-  }
-}
+			// apply transform directly (inner has repeated copies so chosen index exists)
+			const translateY = -chosen * itemH;
+			if (!isNaN(translateY) && r.inner) {
+				r.inner.style.transform = `translateY(${translateY}px)`;
+			}
+		}
+	}
 
 	doUpdateConfig() {
 		if (this.getHeader()) {
@@ -984,103 +1017,85 @@ _updateRollers() {
 						const win = this._elements.digit_window[idx];
 						// create roller if not present
 						if (win && !win.querySelector('.osumc-digit-roller')) {
-						  // Attempt to reuse existing static digit node as the middle copy
-						  const staticDigit = win.querySelector('.osumc-digit-text'); // may be null if not present
-						  // compute the current least-significant digit
-						  const currentDigit = parseInt(cntr_str.substring(lastD, lastD + 1)) || 0;
+							// remove plain .osumc-digit-text and build roller structure
+							win.innerHTML = ''; // remove plain .osumc-digit-text
+							const roller = document.createElement('div');
+							roller.className = 'osumc-digit-roller';
+							const inner = document.createElement('div');
+							inner.className = 'osumc-digit-roller-inner';
+							// create digits 0..9 stacked vertically
+							for (let n = 0; n < 10; n++) {
+								const it = document.createElement('span');
+								it.className = 'osumc-digit-roller-item';
+								it.textContent = n;
+								inner.appendChild(it);
+							}
+							roller.appendChild(inner);
+							win.appendChild(roller);
+							// determine measured item height (fallback to 24)
+							const h = (inner.children[0].getBoundingClientRect().height) || 24;
+							// apply per-digit visual styles so roller items match original digits
+							const digitFontSize = (this._config && this._config.font_size) ? (this._config.font_size + 'px') : '26px';
+							const digitFontFamily = (this._config && this._config.font == 'Carlito') ? 'Carlito' : 'inherit';
+							const digitColorCfg = this._config['digit_color' + suffix];
+							const gradient = digitColorCfg ? ('linear-gradient(rgba(64,64,64,1), ' + digitColorCfg + ', rgba(64,64,64,1))') : null;
+							for (let k = 0; k < inner.children.length; k++) {
+								const item = inner.children[k];
+								item.style.fontSize = digitFontSize;
+								item.style.fontFamily = digitFontFamily;
+								// ensure vertical centering and proper height
+								item.style.height = h + 'px';
+								item.style.lineHeight = h + 'px';
+								// if a digit color is configured, use the same gradient/text-clip technique
+								if (gradient) {
+									item.style.backgroundImage = gradient;
+									item.style.color = 'transparent';
+									item.style.webkitBackgroundClip = 'text';
+									item.style.backgroundClip = 'text';
+								} else {
+									// fallback: inherit color so the digit is visible
+									item.style.color = 'inherit';
+								}
+							}
 
-						  // build roller structure
-						  const roller = document.createElement('div');
-						  roller.className = 'osumc-digit-roller';
-						  const inner = document.createElement('div');
-						  inner.className = 'osumc-digit-roller-inner';
-
-						  // create digits 0..9 repeated 3 times (so we have copies for smooth wrapping),
-						  // reusing the existing staticDigit for the middle copy when available.
-						  for (let rep = 0; rep < 3; rep++) {
-						    for (let n = 0; n < 10; n++) {
-						      if (rep === 1 && n === currentDigit && staticDigit) {
-						        // reuse the existing node as the middle copy's item
-						        staticDigit.classList.add('osumc-digit-roller-item');
-						        // ensure it's styled later along with the other items; move it into inner
-						        inner.appendChild(staticDigit);
-						      } else {
-						        const it = document.createElement('span');
-						        it.className = 'osumc-digit-roller-item';
-						        it.textContent = n;
-						        inner.appendChild(it);
-						      }
-						    }
-						  }
-
-						  roller.appendChild(inner);
-						  win.appendChild(roller);
-
-						  // measure height (fallback to 24)
-						  const h = (inner.children[0] && inner.children[0].getBoundingClientRect().height) || 24;
-
-						  // apply per-digit visual styles so roller items match original digits
-						  const digitFontSize = (this._config && this._config.font_size) ? (this._config.font_size + 'px') : '26px';
-						  const digitFontFamily = (this._config && this._config.font == 'Carlito') ? 'Carlito' : 'inherit';
-						  const digitColorCfg = this._config['digit_color' + suffix];
-						  const gradient = digitColorCfg ? ('linear-gradient(rgba(64,64,64,1), ' + digitColorCfg + ', rgba(64,64,64,1))') : null;
-						  for (let k = 0; k < inner.children.length; k++) {
-						    const item = inner.children[k];
-						    item.style.fontSize = digitFontSize;
-						    item.style.fontFamily = digitFontFamily;
-						    item.style.height = h + 'px';
-						    item.style.lineHeight = h + 'px';
-						    if (gradient) {
-						      item.style.backgroundImage = gradient;
-						      item.style.color = 'transparent';
-						      item.style.webkitBackgroundClip = 'text';
-						      item.style.backgroundClip = 'text';
-						    } else {
-						      item.style.color = 'inherit';
-						    }
-						  }
-
-						  // place initial position in the middle copy so we can move +/-10 safely
-						  const initialIndex = currentDigit + 10; // middle copy
-						  inner.style.transform = 'translateY(' + (-initialIndex * h) + 'px)';
-
-						  // store references and initial logical position (in extended domain)
-						  this._rollers[i] = { inner: inner, itemHeight: h, pos: initialIndex };
+							// set initial position so the correct digit is visible immediately
+							const currentDigit = parseInt(cntr_str.substring(lastD, lastD + 1)) || 0;
+							inner.style.transform = 'translateY(' + (-currentDigit * h) + 'px)';
+							// store references
+							this._rollers[i] = { inner: inner, itemHeight: h };
 						} else if (win && win.querySelector('.osumc-digit-roller') && !this._rollers[i]) {
-						  // existing roller in DOM but not stored in _rollers -> store references and initialize position
-						  const inner = win.querySelector('.osumc-digit-roller-inner');
-
-						  const h = (inner.children[0] && inner.children[0].getBoundingClientRect().height) || 24;
-
-						  const digitFontSize = (this._config && this._config.font_size) ? (this._config.font_size + 'px') : '26px';
-						  const digitFontFamily = (this._config && this._config.font == 'Carlito') ? 'Carlito' : 'inherit';
-						  const digitColorCfg = this._config['digit_color' + suffix];
-						  const gradient = digitColorCfg ? ('linear-gradient(rgba(64,64,64,1), ' + digitColorCfg + ', rgba(64,64,64,1))') : null;
-						  for (let k = 0; k < inner.children.length; k++) {
-						    const item = inner.children[k];
-						    item.style.fontSize = digitFontSize;
-						    item.style.fontFamily = digitFontFamily;
-						    item.style.height = h + 'px';
-						    item.style.lineHeight = h + 'px';
-						    if (gradient) {
-						      item.style.backgroundImage = gradient;
-						      item.style.color = 'transparent';
-						      item.style.webkitBackgroundClip = 'text';
-						      item.style.backgroundClip = 'text';
-						    } else {
-						      item.style.color = 'inherit';
-						    }
-						  }
-
-						  // initialize visible digit in the middle copy
-						  const currentDigit = parseInt(cntr_str.substring(lastD, lastD + 1)) || 0;
-						  const initialIndex = currentDigit + 10;
-						  inner.style.transform = 'translateY(' + (-initialIndex * h) + 'px)';
-						  this._rollers[i] = { inner: inner, itemHeight: h, pos: initialIndex };
-						} else {
-							// no digit windows -> remove possible roller
-							this._rollers[i] = null;
+							// existing roller in DOM but not stored in _rollers -> store references and initialize position
+							const inner = win.querySelector('.osumc-digit-roller-inner');
+							const h = (inner.children[0].getBoundingClientRect().height) || 24;
+							// try to apply styles to the existing items as well (in case they were created without styling)
+							const digitFontSize = (this._config && this._config.font_size) ? (this._config.font_size + 'px') : '26px';
+							const digitFontFamily = (this._config && this._config.font == 'Carlito') ? 'Carlito' : 'inherit';
+							const digitColorCfg = this._config['digit_color' + suffix];
+							const gradient = digitColorCfg ? ('linear-gradient(rgba(64,64,64,1), ' + digitColorCfg + ', rgba(64,64,64,1))') : null;
+							for (let k = 0; k < inner.children.length; k++) {
+								const item = inner.children[k];
+								item.style.fontSize = digitFontSize;
+								item.style.fontFamily = digitFontFamily;
+								item.style.height = h + 'px';
+								item.style.lineHeight = h + 'px';
+								if (gradient) {
+									item.style.backgroundImage = gradient;
+									item.style.color = 'transparent';
+									item.style.webkitBackgroundClip = 'text';
+									item.style.backgroundClip = 'text';
+								} else {
+									item.style.color = 'inherit';
+								}
+							}
+							// initialize visible digit immediately
+							const currentDigit = parseInt(cntr_str.substring(lastD, lastD + 1)) || 0;
+							inner.style.transform = 'translateY(' + (-currentDigit * h) + 'px)';
+							this._rollers[i] = { inner: inner, itemHeight: h };
 						}
+					} else {
+						// no digit windows -> remove possible roller
+						this._rollers[i] = null;
+					}
 
 					if (this._config['decimal_separator_color' + suffix] != undefined && this._config['decimal_separator_color' + suffix] != '') {
 						this._elements.dp[i].style.color = this._config['decimal_separator_color' + suffix];
@@ -1343,7 +1358,7 @@ _updateRollers() {
 					case "show_wheel":
 						return "Shows a rotating wheel with marker, like on real electricity meter";
 					case "speed_control_mode":
-						return "Fixed - the wheel rotates with constant speed defined below. Power - the speed depends on sensor value of a defined entity, can be Power, Current, Flow... Realistic - Emulates real utili[...]
+						return "Fixed - the wheel rotates with constant speed defined below. Power - the speed depends on sensor value of a defined entity, can be Power, Current, Flow... Realistic - Emulates real utility meters";
 					case "wheel_speed":
 						return "Speed of the wheel. Number of seconds per single rotation (-20 to 20, 0 = STOP, 0.1 - fastest, 20 - slowest, negative values = reverse direction)";
 					case "power_entity":
@@ -1355,7 +1370,7 @@ _updateRollers() {
 					case "max_power_value":
 						return "Maximum expected value of the above entity, at which the wheel will rotate at max speed. See Readme for deeper explanation.";
 					case "scale":
-						return "Set the scale of the counter (default = 100%). In case you have too many digits that you want to display and the counter doesn't fit into card. Or if you want to make the counter bigger.[...]
+						return "Set the scale of the counter (default = 100%). In case you have too many digits that you want to display and the counter doesn't fit into card. Or if you want to make the counter bigger.";
 					case "rot_time_per_kwh":
 						return "Set the amount of rotations the wheel should complete per used kwh. Default value is 75. If your Power Entity returns kW instead of W, enter the value multiplied by 1000 (75.000).";
 				}
