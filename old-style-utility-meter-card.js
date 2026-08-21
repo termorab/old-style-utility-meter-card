@@ -982,83 +982,90 @@ _updateRollers() {
 					if (lastD >= 0) {
 						const idx = i * 15 + lastD;
 						const win = this._elements.digit_window[idx];
-						// create roller if not present
-						if (win && !win.querySelector('.osumc-digit-roller')) {
-							// remove plain .osumc-digit-text and build roller structure
-							win.innerHTML = ''; // remove plain .osumc-digit-text
-							const roller = document.createElement('div');
-							roller.className = 'osumc-digit-roller';
-							const inner = document.createElement('div');
-							inner.className = 'osumc-digit-roller-inner';
-							// create digits 0..9 stacked vertically
-							for (let n = 0; n < 10; n++) {
-								const it = document.createElement('span');
-								it.className = 'osumc-digit-roller-item';
-								it.textContent = n;
-								inner.appendChild(it);
-							}
-							roller.appendChild(inner);
-							win.appendChild(roller);
-							// determine measured item height (fallback to 24)
-							const h = (inner.children[0].getBoundingClientRect().height) || 24;
-							// apply per-digit visual styles so roller items match original digits
-							const digitFontSize = (this._config && this._config.font_size) ? (this._config.font_size + 'px') : '26px';
-							const digitFontFamily = (this._config && this._config.font == 'Carlito') ? 'Carlito' : 'inherit';
-							const digitColorCfg = this._config['digit_color' + suffix];
-							const gradient = digitColorCfg ? ('linear-gradient(rgba(64,64,64,1), ' + digitColorCfg + ', rgba(64,64,64,1))') : null;
-							for (let k = 0; k < inner.children.length; k++) {
-								const item = inner.children[k];
-								item.style.fontSize = digitFontSize;
-								item.style.fontFamily = digitFontFamily;
-								// ensure vertical centering and proper height
-								item.style.height = h + 'px';
-								item.style.lineHeight = h + 'px';
-								// if a digit color is configured, use the same gradient/text-clip technique
-								if (gradient) {
-									item.style.backgroundImage = gradient;
-									item.style.color = 'transparent';
-									item.style.webkitBackgroundClip = 'text';
-									item.style.backgroundClip = 'text';
-								} else {
-									// fallback: inherit color so the digit is visible
-									item.style.color = 'inherit';
-								}
-							}
-
-							// set initial position so the correct digit is visible immediately
-							const currentDigit = parseInt(cntr_str.substring(lastD, lastD + 1)) || 0;
-							inner.style.transform = 'translateY(' + (-currentDigit * h) + 'px)';
-							// store references
-							this._rollers[i] = { inner: inner, itemHeight: h };
-						} else if (win && win.querySelector('.osumc-digit-roller') && !this._rollers[i]) {
-							// existing roller in DOM but not stored in _rollers -> store references and initialize position
-							const inner = win.querySelector('.osumc-digit-roller-inner');
-							const h = (inner.children[0].getBoundingClientRect().height) || 24;
-							// try to apply styles to the existing items as well (in case they were created without styling)
-							const digitFontSize = (this._config && this._config.font_size) ? (this._config.font_size + 'px') : '26px';
-							const digitFontFamily = (this._config && this._config.font == 'Carlito') ? 'Carlito' : 'inherit';
-							const digitColorCfg = this._config['digit_color' + suffix];
-							const gradient = digitColorCfg ? ('linear-gradient(rgba(64,64,64,1), ' + digitColorCfg + ', rgba(64,64,64,1))') : null;
-							for (let k = 0; k < inner.children.length; k++) {
-								const item = inner.children[k];
-								item.style.fontSize = digitFontSize;
-								item.style.fontFamily = digitFontFamily;
-								item.style.height = h + 'px';
-								item.style.lineHeight = h + 'px';
-								if (gradient) {
-									item.style.backgroundImage = gradient;
-									item.style.color = 'transparent';
-									item.style.webkitBackgroundClip = 'text';
-									item.style.backgroundClip = 'text';
-								} else {
-									item.style.color = 'inherit';
-								}
-							}
-							// initialize visible digit immediately
-							const currentDigit = parseInt(cntr_str.substring(lastD, lastD + 1)) || 0;
-							inner.style.transform = 'translateY(' + (-currentDigit * h) + 'px)';
-							this._rollers[i] = { inner: inner, itemHeight: h };
-						}
+					// create roller if not present
+					if (win && !win.querySelector('.osumc-digit-roller')) {
+					  // remove plain .osumc-digit-text and build roller structure
+					  win.innerHTML = ''; // remove plain .osumc-digit-text
+					  const roller = document.createElement('div');
+					  roller.className = 'osumc-digit-roller';
+					  const inner = document.createElement('div');
+					  inner.className = 'osumc-digit-roller-inner';
+					
+					  // create digits 0..9 repeated 3 times (so we have copies for smooth wrapping)
+					  for (let rep = 0; rep < 3; rep++) {
+					    for (let n = 0; n < 10; n++) {
+					      const it = document.createElement('span');
+					      it.className = 'osumc-digit-roller-item';
+					      it.textContent = n;
+					      inner.appendChild(it);
+					    }
+					  }
+					
+					  roller.appendChild(inner);
+					  win.appendChild(roller);
+					
+					  // measure height (fallback to 24)
+					  const h = (inner.children[0] && inner.children[0].getBoundingClientRect().height) || 24;
+					
+					  // apply per-digit visual styles so roller items match original digits
+					  const digitFontSize = (this._config && this._config.font_size) ? (this._config.font_size + 'px') : '26px';
+					  const digitFontFamily = (this._config && this._config.font == 'Carlito') ? 'Carlito' : 'inherit';
+					  const digitColorCfg = this._config['digit_color' + suffix];
+					  const gradient = digitColorCfg ? ('linear-gradient(rgba(64,64,64,1), ' + digitColorCfg + ', rgba(64,64,64,1))') : null;
+					  for (let k = 0; k < inner.children.length; k++) {
+					    const item = inner.children[k];
+					    item.style.fontSize = digitFontSize;
+					    item.style.fontFamily = digitFontFamily;
+					    item.style.height = h + 'px';
+					    item.style.lineHeight = h + 'px';
+					    if (gradient) {
+					      item.style.backgroundImage = gradient;
+					      item.style.color = 'transparent';
+					      item.style.webkitBackgroundClip = 'text';
+					      item.style.backgroundClip = 'text';
+					    } else {
+					      item.style.color = 'inherit';
+					    }
+					  }
+					
+					  // place initial position in the middle copy so we can move +/-10 safely
+					  const currentDigit = parseInt(cntr_str.substring(lastD, lastD + 1)) || 0;
+					  const initialIndex = currentDigit + 10; // middle copy
+					  inner.style.transform = 'translateY(' + (-initialIndex * h) + 'px)';
+					
+					  // store references and initial logical position (in extended domain)
+					  this._rollers[i] = { inner: inner, itemHeight: h, pos: initialIndex };
+					} else if (win && win.querySelector('.osumc-digit-roller') && !this._rollers[i]) {
+					  // existing roller in DOM but not stored in _rollers -> store references and initialize position
+					  const inner = win.querySelector('.osumc-digit-roller-inner');
+					
+					  const h = (inner.children[0] && inner.children[0].getBoundingClientRect().height) || 24;
+					
+					  const digitFontSize = (this._config && this._config.font_size) ? (this._config.font_size + 'px') : '26px';
+					  const digitFontFamily = (this._config && this._config.font == 'Carlito') ? 'Carlito' : 'inherit';
+					  const digitColorCfg = this._config['digit_color' + suffix];
+					  const gradient = digitColorCfg ? ('linear-gradient(rgba(64,64,64,1), ' + digitColorCfg + ', rgba(64,64,64,1))') : null;
+					  for (let k = 0; k < inner.children.length; k++) {
+					    const item = inner.children[k];
+					    item.style.fontSize = digitFontSize;
+					    item.style.fontFamily = digitFontFamily;
+					    item.style.height = h + 'px';
+					    item.style.lineHeight = h + 'px';
+					    if (gradient) {
+					      item.style.backgroundImage = gradient;
+					      item.style.color = 'transparent';
+					      item.style.webkitBackgroundClip = 'text';
+					      item.style.backgroundClip = 'text';
+					    } else {
+					      item.style.color = 'inherit';
+					    }
+					  }
+					
+					  // initialize visible digit in the middle copy
+					  const currentDigit = parseInt(cntr_str.substring(lastD, lastD + 1)) || 0;
+					  const initialIndex = currentDigit + 10;
+					  inner.style.transform = 'translateY(' + (-initialIndex * h) + 'px)';
+					  this._rollers[i] = { inner: inner, itemHeight: h, pos: initialIndex };
 					} else {
 						// no digit windows -> remove possible roller
 						this._rollers[i] = null;
