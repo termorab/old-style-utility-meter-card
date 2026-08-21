@@ -621,124 +621,91 @@ class OldStyleUtilityMeterCard extends HTMLElement {
 		}
 	}
 
-	_updateRollers() {
-		// Update roller for each configured counter that has a roller object
-		for (let i = 0; i < MAX_COUNTERS; i++) {
-			const r = this._rollers[i];
-			if (!r) continue;
-			const suffix = (i > 0) ? '_' + (i + 1) : '';
-			const entityId = this._config['entity' + suffix];
-			if (!entityId) continue;
-			// read base entity value and last update time
-			const stateObj = this._hass.states[entityId];
-			if (!stateObj) continue;
-			const baseVal = parseFloat(stateObj.state) || 0;
-			const lastUpdated = new Date(stateObj.last_updated).getTime() / 1000;
-			// read power if configured
-			let powerVal = 0;
-			if (this._config.power_entity && this._hass.states[this._config.power_entity]) {
-				powerVal = parseFloat(this._hass.states[this._config.power_entity].state) || 0;
-				// adjust if power_entity unit is kW -> convert to W
-				const pUnit = (this._hass.states[this._config.power_entity].attributes || {}).unit_of_measurement || '';
-				if (String(pUnit).toLowerCase().includes('kw')) {
-					powerVal = powerVal * 1000; // now in W
-				}
-			}
-			// estimate current value from last update using power (power in W)
-			const nowS = Date.now() / 1000;
-			const deltaS = Math.max(0, nowS - lastUpdated);
-			const estVal = baseVal + (powerVal * deltaS) / 3600000; // converts W * s -> kWh
-			// compute scaling depending on decimal digits used for that counter
-			const digits_right = Number(this._config['decimal_digit_number' + suffix] || 0);
-			const factor = Math.pow(10, digits_right);
-			const scaled = estVal * factor; // scaled value (signed)
+_updateRollers() {
+  const nowS = Date.now() / 1000;
 
-			// compute digit index and fractional amount using magnitude
-			const absScaled = Math.abs(scaled);
-			const intPartAbs = Math.floor(absScaled);
-			const digitIndex = intPartAbs % 10;                // 0..9
-			const frac = absScaled - intPartAbs;               // fractional part 0..1
+  for (let i = 0; i < MAX_COUNTERS; i++) {
+    const r = this._rollers[i];
+    if (!r) continue;
+    const suffix = (i > 0) ? '_' + (i + 1) : '';
+    const entityId = this._config['entity' + suffix];
+    if (!entityId) continue;
 
-			// direction: positive power => roll up (increasing), negative => roll down (decreasing)
-			const direction = (powerVal >= 0) ? 1 : -1;
+    const stateObj = this._hass.states[entityId];
+    if (!stateObj) continue;
+    const baseVal = parseFloat(stateObj.state) || 0;
+    const lastUpdated = new Date(stateObj.last_updated).getTime() / 1000;
 
-			// each roller item height
-			const itemH = r.itemHeight || 24;
+    // read power if configured
+    let powerVal = 0;
+    if (this._config.power_entity && this._hass.states[this._config.power_entity]) {
+      powerVal = parseFloat(this._hass.states[this._config.power_entity].state) || 0;
+      const pUnit = (this._hass.states[this._config.power_entity].attributes || {}).unit_of_measurement || '';
+      if (String(pUnit).toLowerCase().includes('kw')) {
+        powerVal = powerVal * 1000; // convert kW -> W
+      }
+    }
 
-			// base target position for the digit wheel (0..10)
-			const posBase = digitIndex + frac;
+    // estimate base value (kept for initialization / occasional snap)
+    const deltaS_from_state = Math.max(0, nowS - lastUpdated);
+    const estVal = baseVal + (powerVal * deltaS_from_state) / 3600000; // W * s -> kWh
 
-			// inner count (we expect 3 copies -> 30 items, but read it dynamically)
-			const innerCount = (r.inner && r.inner.children) ? r.inner.children.length : 30;
+    // compute scale for last digit (decimal places)
+    const digits_right = Number(this._config['decimal_digit_number' + suffix] || 0);
+    const factor = Math.pow(10, digits_right);
 
-			// recover previous logical position if available (in extended domain)
-			let prevPos = (r.pos !== undefined) ? r.pos : null;
-			if (prevPos === null) {
-				const tf = (r.inner && r.inner.style && r.inner.style.transform) ? r.inner.style.transform : '';
-				const m = tf.match(/translateY\((-?[\d.]+)px\)/);
-				if (m) {
-					const curY = parseFloat(m[1]);
-					if (!isNaN(curY) && itemH !== 0) {
-						prevPos = -curY / itemH;
-					}
-				}
-			}
-			if (prevPos === null) {
-				// fallback init in middle copy (center around +10)
-				prevPos = posBase + 10;
-			}
+    // compute nominal fractional position for the least-significant displayed digit
+    const scaledAbs = Math.abs(estVal * factor);
+    const intPartAbs = Math.floor(scaledAbs);
+    const digitIndex = intPartAbs % 10;
+    const frac = scaledAbs - intPartAbs;
+    const posBase = digitIndex + frac; // 0..10-ish (fractional digit index)
 
-			// build candidate positions (extended domain). Include a further +20 candidate so
-			// wrapping up from 9->0 can advance into the third copy smoothly.
-			const rawCandidates = [posBase - 10, posBase, posBase + 10, posBase + 20];
-			// filter candidates that actually map into existing indexes [0, innerCount-1]
-			const candidates = rawCandidates.filter(c => c >= 0 && c <= innerCount - 1);
+    // ensure items / itemHeight are available
+    const itemH = r.itemHeight || 24;
+    const innerCount = (r.inner && r.inner.children) ? r.inner.children.length : 30;
 
-			// If no valid candidate after filtering (unlikely), just use posBase clamped into range
-			if (candidates.length === 0) {
-				let clamped = Math.max(0, Math.min(innerCount - 1, posBase + 10));
-				r.pos = clamped;
-				const translateY_fallback = -r.pos * itemH;
-				if (!isNaN(translateY_fallback) && r.inner) {
-					r.inner.style.transform = `translateY(${translateY_fallback}px)`;
-				}
-				continue;
-			}
+    // initialize r.pos to the middle copy (posBase + 10) if missing
+    if (r.pos === undefined || r.pos === null) {
+      r.pos = posBase + 10;
+      // set transform immediately
+      r.inner.style.transform = `translateY(${-r.pos * itemH}px)`;
+      r._lastFrame = nowS;
+      continue;
+    }
 
-			// pick candidate that continues motion in intended direction (smallest abs delta > 0 in that direction).
-			// If none move in that direction, pick the nearest candidate (smallest abs delta).
-			let chosen = candidates[0];
-			let bestScore = Infinity;
-			let foundSameDir = false;
-			for (let c = 0; c < candidates.length; c++) {
-				const cand = candidates[c];
-				const delta = cand - prevPos;
-				const absDelta = Math.abs(delta);
-				const sameDir = (delta === 0) || (direction > 0 ? delta > 0 : delta < 0);
-				if (sameDir) {
-					if (!foundSameDir || absDelta < bestScore) {
-						foundSameDir = true;
-						bestScore = absDelta;
-						chosen = cand;
-					}
-				} else if (!foundSameDir) {
-					if (absDelta < bestScore) {
-						bestScore = absDelta;
-						chosen = cand;
-					}
-				}
-			}
+    // compute dt since last roller update (fallback to small dt)
+    const lastFrame = r._lastFrame || nowS;
+    const dt = Math.max(0, Math.min(1, nowS - lastFrame)); // clamp dt to avoid huge jumps
+    r._lastFrame = nowS;
 
-			// store chosen logical position for continuity
-			r.pos = chosen;
+    // ticks per second: derived from power (W) -> kWh/s = power / 3600000; multiply by factor = ticks/sec
+    const ticksPerSecond = (powerVal / 3600000) * factor;
 
-			// apply transform directly (inner has repeated copies so chosen index exists)
-			const translateY = -chosen * itemH;
-			if (!isNaN(translateY) && r.inner) {
-				r.inner.style.transform = `translateY(${translateY}px)`;
-			}
-		}
-	}
+    // integrate position using speed (this makes speed changes smooth, position continuous)
+    r.pos += ticksPerSecond * dt;
+
+    // keep r.pos inside the "middle area" so we always have digits around it.
+    // the inner typically contains 3 copies -> length ~ 30; keep pos around middle copy (10..19)
+    // if pos wandered out, fold it back by adding/subtracting 10 as needed
+    while (r.pos < 10) r.pos += 10;
+    while (r.pos >= innerCount - 10) r.pos -= 10;
+
+    // Occasionally correct huge drift vs. instantaneous estimate (e.g., after sensor reset):
+    const targetPos = posBase + 10; // where the instant estimate would put us
+    const drift = Math.abs(r.pos - targetPos);
+    const driftSnapThreshold = 20; // tweakable: if discrepancy larger than this many ticks, snap
+    if (drift > driftSnapThreshold) {
+      r.pos = targetPos;
+    }
+
+    // apply transform
+    const translateY = -r.pos * itemH;
+    if (!isNaN(translateY) && r.inner) {
+      r.inner.style.transform = `translateY(${translateY}px)`;
+    }
+  }
+}
 
 	doUpdateConfig() {
 		if (this.getHeader()) {
